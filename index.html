@@ -95,34 +95,36 @@
       flex-wrap: wrap;
       border-radius: 8px;
     }
-    .tile .del-btn {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      background: none;
-      border: none;
-      color: #000;
-      font-size: 18px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    .tile .color-btn {
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  background: none;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-
     .tile.color-0 { background: #ffdcdc; }
     .tile.color-1 { background: #fff4c2; }
     .tile.color-2 { background: #dcffe4; }
     .tile.color-3 { background: #dceaff; }
     .tile.color-4 { background: #f0dcff; }
     .tile.color-5 { background: #ffebdc; }
+  
+    /* Big, black X in top‑right */
+.tile button.del-btn {
+  top: 4px !important;
+  right: 4px !important;
+  background: none;
+  border: none;
+  color: #000;
+  font-size: 18px;
+  font-weight: bold;
+  z-index: 10;
+}
+
+/* Move color icon to bottom‑right */
+.tile button.color-btn {
+  bottom: 4px !important;
+  right: 4px !important;
+  top: auto !important;
+  background: none;
+  border: none;
+  font-size: 16px;
+  z-index: 10;
+}
+
   </style>
 </head>
 <body>
