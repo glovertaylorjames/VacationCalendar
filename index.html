@@ -11,21 +11,11 @@
       font-family: sans-serif;
       margin: 0;
       padding: 1rem;
-      background: #121212;
-      color: #e0e0e0;
+      background: #f7f7f7;
     }
 
     .controls {
-      margin: 0.5rem 0;
-    }
-
-    .controls button {
-      background: #333;
-      color: #e0e0e0;
-      border: none;
-      padding: 0.5rem 1rem;
-      border-radius: 4px;
-      cursor: pointer;
+      margin-bottom: 1rem;
     }
 
     .calendar {
@@ -34,9 +24,13 @@
       gap: 0.5rem;
     }
 
+    .week-row {
+      display: contents;
+    }
+
     .day {
-      border: 1px solid #333;
-      background: #1e1e1e;
+      border: 1px solid #ccc;
+      background: white;
       min-height: 150px;
       padding: 5px;
       position: relative;
@@ -47,12 +41,10 @@
     .day h3 {
       margin: 0 0 5px 0;
       font-size: 0.9rem;
-      color: #e0e0e0;
     }
 
     .tile {
       background: #ffdcdc;
-      color: #000;
       padding: 0.5rem;
       margin: 3px 0;
       border-radius: 6px;
@@ -60,8 +52,6 @@
       box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.1);
       position: relative;
       user-select: none;
-      width: 100%;
-      min-height: 3.5rem;
     }
 
     .tile[contenteditable="true"] {
@@ -74,15 +64,22 @@
       right: 2px;
       background: transparent;
       border: none;
-      color: #e0e0e0;
+      color: #333;
       cursor: pointer;
       font-size: 14px;
+    }
+
+    .tile-controls {
+      display: flex;
+      justify-content: flex-end;
+      gap: 5px;
+      margin-top: 2px;
     }
 
     .holding-area {
       margin-top: 2rem;
       padding: 1rem;
-      background: #2a2a2a;
+      background: #eaeaea;
       min-height: 120px;
       display: flex;
       gap: 0.5rem;
@@ -99,12 +96,13 @@
   </style>
 </head>
 <body>
-  <div id="calendar" class="calendar"></div>
-
-  <h3>Holding Area</h3>
   <div class="controls">
     <button onclick="createTile()">➕ Create Tile</button>
   </div>
+
+  <div id="calendar" class="calendar"></div>
+
+  <h3>Holding Area</h3>
   <div id="holdingArea" class="holding-area" ondragover="allowDrop(event)" ondrop="drop(event, null)"></div>
 
   <script>
@@ -165,6 +163,7 @@
       });
 
       tile.addEventListener("click", () => {
+        // Prevent dragging while editing
         tile.draggable = false;
       });
 
@@ -193,6 +192,7 @@
       tile.appendChild(del);
       tile.appendChild(colorBtn);
 
+      // Insert into correct place
       if (data.location === null) {
         holdingAreaEl.appendChild(tile);
       } else {
