@@ -215,15 +215,35 @@
     }
 
     function renderAll() {
-      renderCalendar();
-      Object.values(state).forEach(renderTile);
-    }
+  holdingAreaEl.innerHTML = '';    // Clear holding area
+  renderCalendar();                // Clear and redraw calendar
+  Object.values(state).forEach(renderTile);
+}
 
     function saveState() {
       localStorage.setItem("calendarState", JSON.stringify(state));
     }
 
     renderAll();
+    
+    function setupDropTargets() {
+  document.querySelectorAll('.day, #holdingArea').forEach(el => {
+    el.ondragover = e => e.preventDefault();
+    el.ondrop = e => {
+      e.preventDefault();
+      const id = e.dataTransfer.getData('text/plain');
+      if (state[id]) {
+        const date = el.dataset.date || null;
+        state[id].location = date;
+        renderAll();
+        saveState();
+      }
+    };
+  });
+}
+// Call this once after defining functions:
+setupDropTargets();
+
   </script>
 </body>
 </html>
