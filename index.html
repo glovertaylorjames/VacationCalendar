@@ -68,6 +68,18 @@
       cursor: pointer;
       font-size: 14px;
     }
+/* Make calendar tiles fill their calendar cell */
+.calendar .tile {
+  width: 100%;
+}
+
+/* Make holding‑area tiles the same width as one calendar column:
+   subtract out the 0.5rem gaps between 7 columns (6 gaps total = 3rem) */
+.holding-area .tile {
+  width: calc((100% - 3rem) / 7);
+}
+
+
 
     .tile-controls {
       display: flex;
