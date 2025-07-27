@@ -73,13 +73,19 @@
       top: 2px;
       background: transparent;
       border: none;
-      color: #e0e0e0;
       cursor: pointer;
       font-size: 14px;
     }
 
-    .tile .del-btn { right: 2px; }
-    .tile .color-btn { right: 26px; }
+    .tile .del-btn {
+      right: 2px;
+      color: #000;
+      font-weight: bold;
+    }
+    .tile .color-btn {
+      right: 26px;
+      color: #e0e0e0;
+    }
 
     .holding-area {
       margin-top: 2rem;
@@ -166,17 +172,12 @@
         saveState();
       });
 
-      tile.addEventListener("click", () => {
-        tile.draggable = false;
-      });
-
-      tile.addEventListener("blur", () => {
-        tile.draggable = true;
-      });
+      tile.addEventListener("click", () => { tile.draggable = false; });
+      tile.addEventListener("blur", () => { tile.draggable = true; });
 
       const del = document.createElement("button");
       del.className = "del-btn";
-      del.innerText = "🗑";
+      del.innerText = "X";
       del.onclick = (e) => {
         e.stopPropagation();
         delete state[data.id];
@@ -206,27 +207,10 @@
       }
     }
 
-    function allowDrop(e) {
-      e.preventDefault();
-    }
-
-    function drop(e, date) {
-      e.preventDefault();
-      const id = e.dataTransfer.getData("text/plain");
-      state[id].location = date;
-      renderAll();
-      saveState();
-    }
-
-    function renderAll() {
-      renderCalendar();
-      Object.values(state).forEach(renderTile);
-    }
-
-    function saveState() {
-      localStorage.setItem("calendarState", JSON.stringify(state));
-    }
-
+    function allowDrop(e) { e.preventDefault(); }
+    function drop(e, date) { e.preventDefault(); const id = e.dataTransfer.getData("text/plain"); state[id].location = date; renderAll(); saveState(); }
+    function renderAll() { renderCalendar(); Object.values(state).forEach(renderTile); }
+    function saveState() { localStorage.setItem("calendarState", JSON.stringify(state)); }
     renderAll();
   </script>
 </body>
