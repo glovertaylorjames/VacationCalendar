@@ -126,6 +126,23 @@
       z-index: 10;
       padding: 0 2px;
     }
+    .tile .up-btn, .tile .down-btn {
+      position: absolute;
+      left: 6px;
+      background: none;
+      border: none;
+      color: #222;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      z-index: 11;
+      padding: 0 2px;
+      opacity: 1;
+      /* Always visible for touch users. Use 0.6 for desktop if you prefer */
+      transition: opacity 0.2s;
+    }
+    .tile .up-btn { top: 6px; }
+    .tile .down-btn { bottom: 6px; }
     .holding-area {
       margin-top: 2rem;
       padding: 1rem;
@@ -237,50 +254,7 @@
           .filter(t => t.location === date);
 
         dayTiles.forEach((tileData, idx) => {
-          const tile = renderTile(tileData);
-
-          tile.ondragstart = (e) => {
-            draggingId = tileData.id;
-            dragTargetDay = tileData.location;
-            setTimeout(() => tile.classList.add("dragging"), 0);
-            e.dataTransfer.effectAllowed = "move";
-            e.dataTransfer.setData("text/plain", tileData.id);
-          };
-
-          tile.ondragend = (e) => {
-            draggingId = null;
-            dragOverId = null;
-            dragTargetDay = null;
-            dragOverPos = null;
-            renderAll();
-          };
-
-          tile.ondragover = (e) => {
-            if (!draggingId || draggingId === tileData.id) return;
-            e.preventDefault();
-            const rect = tile.getBoundingClientRect();
-            const midpoint = rect.top + rect.height / 2;
-            dragOverId = tileData.id;
-            dragOverPos = (e.clientY < midpoint) ? "above" : "below";
-            dragTargetDay = date;
-            renderAll();
-          };
-
-          tile.ondrop = (e) => {
-            e.preventDefault();
-            handleTileDrop(tileData.id, dragOverPos, date);
-          };
-
-          tile.ondragleave = (e) => {
-            dragOverId = null;
-            dragOverPos = null;
-            renderAll();
-          };
-
-          if (draggingId && dragOverId === tileData.id) {
-            tile.classList.add("drag-over");
-          }
-
+          const tile = renderTile(tileData, dayTiles, idx, date);
           dayBox.appendChild(tile);
         });
 
@@ -288,7 +262,7 @@
       }
     }
 
-    function renderTile(data) {
+    function renderTile(data, dayTiles = null, idxInDay = null, curDay = null) {
       const tile = document.createElement("div");
       tile.className = `tile color-${data.color}`;
       tile.draggable = true;
@@ -324,6 +298,35 @@
           renderContent();
         }
       });
+
+      // Up/down arrow logic (only show when reordering is possible)
+      if (dayTiles && idxInDay !== null) {
+        // Up arrow
+        const upBtn = document.createElement("button");
+        upBtn.className = "up-btn";
+        upBtn.type = "button";
+        upBtn.innerHTML = "▲";
+        upBtn.title = "Move Up";
+        upBtn.onclick = (e) => {
+          e.stopPropagation();
+          moveTileWithinDay(data.id, curDay, -1);
+        };
+        if (idxInDay === 0) upBtn.disabled = true;
+        tile.appendChild(upBtn);
+
+        // Down arrow
+        const downBtn = document.createElement("button");
+        downBtn.className = "down-btn";
+        downBtn.type = "button";
+        downBtn.innerHTML = "▼";
+        downBtn.title = "Move Down";
+        downBtn.onclick = (e) => {
+          e.stopPropagation();
+          moveTileWithinDay(data.id, curDay, 1);
+        };
+        if (idxInDay === dayTiles.length - 1) downBtn.disabled = true;
+        tile.appendChild(downBtn);
+      }
 
       // Delete button
       const del = document.createElement("button");
@@ -363,7 +366,64 @@
         tile.style.marginBottom = "3px";
       }
 
+      // Drag/drop events for Trello-style movement
+      tile.ondragstart = (e) => {
+        draggingId = data.id;
+        dragTargetDay = data.location;
+        setTimeout(() => tile.classList.add("dragging"), 0);
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", data.id);
+      };
+
+      tile.ondragend = (e) => {
+        draggingId = null;
+        dragOverId = null;
+        dragTargetDay = null;
+        dragOverPos = null;
+        renderAll();
+      };
+
+      tile.ondragover = (e) => {
+        if (!draggingId || draggingId === data.id) return;
+        e.preventDefault();
+        const rect = tile.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        dragOverId = data.id;
+        dragOverPos = (e.clientY < midpoint) ? "above" : "below";
+        dragTargetDay = curDay;
+        renderAll();
+      };
+
+      tile.ondrop = (e) => {
+        e.preventDefault();
+        handleTileDrop(data.id, dragOverPos, curDay);
+      };
+
+      tile.ondragleave = (e) => {
+        dragOverId = null;
+        dragOverPos = null;
+        renderAll();
+      };
+
       return tile;
+    }
+
+    // Move tile up or down within the same day or holding area
+    function moveTileWithinDay(id, date, direction) {
+      const filtered = tiles.filter(t => t.location === date);
+      const idx = filtered.findIndex(t => t.id === id);
+      if (idx === -1) return;
+      const swapIdx = idx + direction;
+      if (swapIdx < 0 || swapIdx >= filtered.length) return;
+      // Find actual global indices
+      const globalIndices = filtered.map(t => tiles.findIndex(t2 => t2.id === t.id));
+      const curGlobalIdx = globalIndices[idx];
+      const swapGlobalIdx = globalIndices[swapIdx];
+      // Swap in global array
+      const temp = tiles[curGlobalIdx];
+      tiles[curGlobalIdx] = tiles[swapGlobalIdx];
+      tiles[swapGlobalIdx] = temp;
+      syncToFirestore();
     }
 
     // Trello-style stacking
@@ -430,54 +490,10 @@
       holdingAreaEl.innerHTML = '';
       const holdingTiles = tiles.filter(t => !t.location);
       holdingTiles.forEach((tileData, idx) => {
-        const tile = renderTile(tileData);
-
-        tile.ondragstart = (e) => {
-          draggingId = tileData.id;
-          dragTargetDay = null;
-          setTimeout(() => tile.classList.add("dragging"), 0);
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", tileData.id);
-        };
-
-        tile.ondragend = (e) => {
-          draggingId = null;
-          dragOverId = null;
-          dragTargetDay = null;
-          dragOverPos = null;
-          renderAll();
-        };
-
-        tile.ondragover = (e) => {
-          if (!draggingId || draggingId === tileData.id) return;
-          e.preventDefault();
-          const rect = tile.getBoundingClientRect();
-          const midpoint = rect.top + rect.height / 2;
-          dragOverId = tileData.id;
-          dragOverPos = (e.clientY < midpoint) ? "above" : "below";
-          dragTargetDay = null;
-          renderAll();
-        };
-
-        tile.ondrop = (e) => {
-          e.preventDefault();
-          handleTileDrop(tileData.id, dragOverPos, null);
-        };
-
-        tile.ondragleave = (e) => {
-          dragOverId = null;
-          dragOverPos = null;
-          renderAll();
-        };
-
-        if (draggingId && dragOverId === tileData.id) {
-          tile.classList.add("drag-over");
-        }
-
+        const tile = renderTile(tileData, holdingTiles, idx, null);
         holdingAreaEl.appendChild(tile);
       });
 
-      // Always accept drop into the holding area
       holdingAreaEl.ondragover = (e) => {
         e.preventDefault();
         if (!draggingId) return;
@@ -488,7 +504,7 @@
       holdingAreaEl.ondrop = (e) => {
         e.preventDefault();
         if (!draggingId) return;
-        moveTileToDay(draggingId, null, null); // always append to end
+        moveTileToDay(draggingId, null, null);
         draggingId = null;
         dragOverId = null;
         dragOverPos = null;
@@ -497,12 +513,10 @@
       };
     }
 
-    // Sync with Firestore
     async function syncToFirestore() {
       await setDoc(docRef, { tiles });
     }
 
-    // Listen to Firestore changes
     onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists() && Array.isArray(docSnap.data().tiles)) {
         tiles = docSnap.data().tiles;
@@ -515,7 +529,6 @@
       renderHolding();
     }
 
-    // Create tile
     window.createTile = function createTile() {
       const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       tiles.push({ id, text: "New Activity", color: 0, location: null });
