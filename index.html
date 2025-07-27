@@ -108,6 +108,7 @@
     function renderTile(data){
       const tile = document.createElement('div');
       tile.className=`tile color-${data.color}`; tile.draggable=true;
+      tile.dataset.id = data.id;
 
       // Content area
       const content = document.createElement('div');
@@ -128,7 +129,11 @@
       const menu = document.createElement('div'); menu.className='color-menu';
       pastelColors.forEach(i=>{
         const sw = document.createElement('div'); sw.className=`swatch color-${i}`;
-        sw.addEventListener('click',ev=>{ ev.stopPropagation(); state[data.id].color = i; menu.classList.remove('show'); renderAll(); saveState(); });
+        sw.addEventListener('click',ev=>{
+          ev.stopPropagation();
+          if(state[data.id]) state[data.id].color = i;
+          menu.classList.remove('show'); renderAll(); saveState();
+        });
         menu.appendChild(sw);
       });
       colorBtn.addEventListener('click',e=>{ e.stopPropagation(); menu.classList.toggle('show'); });
