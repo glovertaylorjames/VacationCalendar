@@ -203,9 +203,13 @@
       content.spellcheck = true;
       content.innerText = data.text;
       content.addEventListener("input", (e) => {
-        state[data.id].text = content.innerText.trim();
-        syncToFirestore();
-      });
+      state[data.id].text = content.innerText.trim();
+      // NO syncToFirestore here!
+    });
+    content.addEventListener("blur", (e) => {
+      syncToFirestore();
+    });
+
 
       // Delete button (big black X)
       const del = document.createElement("button");
