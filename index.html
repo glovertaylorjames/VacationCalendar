@@ -34,11 +34,11 @@
     .day {
       border: 1px solid #333;
       background: #1e1e1e;
-      min-height: 150px;
       padding: 5px;
       display: flex;
       flex-direction: column;
       position: relative;
+      transition: min-height 0.2s;
     }
     .day h3 {
       margin: 0 0 5px;
@@ -129,20 +129,23 @@
     .tile .up-btn, .tile .down-btn {
       position: absolute;
       left: 6px;
+      width: 24px;
+      height: 24px;
       background: none;
       border: none;
-      color: #222;
-      font-size: 22px;
-      line-height: 1;
+      font-size: 18px;
+      color: #444;
       cursor: pointer;
-      z-index: 11;
-      padding: 0 2px;
-      opacity: 1;
-      /* Always visible for touch users. Use 0.6 for desktop if you prefer */
-      transition: opacity 0.2s;
+      z-index: 10;
+      padding: 0;
+      line-height: 1;
+      background: rgba(255,255,255,0.3);
+      border-radius: 50%;
+      transition: background 0.15s;
     }
     .tile .up-btn { top: 6px; }
     .tile .down-btn { bottom: 6px; }
+    .tile .up-btn:hover, .tile .down-btn:hover { background: #fff8; }
     .holding-area {
       margin-top: 2rem;
       padding: 1rem;
@@ -173,7 +176,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
     import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
-    // Your Firebase config
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAEpv0ZHT3fwo9aIsJKyzvk9EPtG70HNkk",
       authDomain: "calendartiles.firebaseapp.com",
@@ -210,7 +213,7 @@
     let tiles = [];
     let draggingId = null;
     let dragOverId = null;
-    let dragOverPos = null;
+    let dragOverPos = null; // "above" or "below" or "day" (empty area of day)
     let dragTargetDay = null;
 
     function linkify(text) {
@@ -229,72 +232,145 @@
     const holdingAreaEl = document.getElementById("holdingArea");
 
     function renderCalendar() {
-  calendarEl.innerHTML = "";
-  for (let i = 0; i < 14; i++) {
-    const date = dates[i];
-    const dayBox = document.createElement("div");
-    dayBox.className = "day";
-    dayBox.dataset.date = date;
-    dayBox.ondragover = e => handleDayDragOver(e, date);
-    dayBox.ondrop = e => handleDayDrop(e, date);
+      calendarEl.innerHTML = "";
+      const baseTileHeight = 80; // px, est. tile height
+      for (let i = 0; i < 14; i++) {
+        const date = dates[i];
+        const dayBox = document.createElement("div");
+        dayBox.className = "day";
+        dayBox.dataset.date = date;
 
-    const title = document.createElement("h3");
-    title.innerHTML = `${days[i % 7]}<br>${date}`;
-    dayBox.appendChild(title);
+        // Drag-over: always prevent default!
+        dayBox.ondragover = (e) => {
+          e.preventDefault();
+          handleDayDragOver(e, date);
+        };
+        dayBox.ondrop = (e) => handleDayDrop(e, date);
 
-    // Get tiles for this day
-    const dayTiles = tiles
-      .map((t, idx) => ({ ...t, __idx: idx })) // track global idx
-      .filter(t => t.location === date);
+        const title = document.createElement("h3");
+        title.innerHTML = `${days[i % 7]}<br>${date}`;
+        dayBox.appendChild(title);
 
-    dayTiles.forEach((tileData, idx) => {
-      const tile = renderTile(tileData, dayTiles, idx, date);
+        // Get tiles for this day
+        const dayTiles = tiles
+          .map((t, idx) => ({ ...t, __idx: idx })) // track global idx
+          .filter(t => t.location === date);
 
-      // ... (all your drag/drop events here, as before) ...
-      // (no change needed to tile events)
-      dayBox.appendChild(tile);
-    });
+        dayTiles.forEach((tileData, idx) => {
+          const tile = renderTile(tileData, dayTiles, idx);
 
-    // **NEW: Dynamically increase hit area!**
-    const baseTileHeight = 80; // px (5rem ≈ 80px)
-    const newMinHeight = Math.max(150, (dayTiles.length + 1.5) * baseTileHeight);
-    dayBox.style.minHeight = `${newMinHeight}px`;
+          // Drag events for Trello-style insertion
+          tile.ondragstart = (e) => {
+            draggingId = tileData.id;
+            dragTargetDay = tileData.location;
+            setTimeout(() => tile.classList.add("dragging"), 0);
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", tileData.id);
+          };
 
-    // Drag-over behavior (no change)
-    dayBox.addEventListener('dragover', (e) => {
-      if (!draggingId) return;
-      if (dayTiles.length === 0) {
-        e.preventDefault();
-        dragTargetDay = date;
-        dragOverId = null;
-        dragOverPos = "day";
-        renderAll();
+          tile.ondragend = (e) => {
+            draggingId = null;
+            dragOverId = null;
+            dragTargetDay = null;
+            dragOverPos = null;
+            renderAll();
+          };
+
+          tile.ondragover = (e) => {
+            if (!draggingId || draggingId === tileData.id) return;
+            e.preventDefault();
+            // Decide above or below
+            const rect = tile.getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            dragOverId = tileData.id;
+            dragOverPos = (e.clientY < midpoint) ? "above" : "below";
+            dragTargetDay = date;
+            renderAll();
+          };
+
+          tile.ondrop = (e) => {
+            e.preventDefault();
+            handleTileDrop(tileData.id, dragOverPos, date);
+          };
+
+          tile.ondragleave = (e) => {
+            dragOverId = null;
+            dragOverPos = null;
+            renderAll();
+          };
+
+          // Highlight drag target
+          if (draggingId && dragOverId === tileData.id) {
+            tile.classList.add("drag-over");
+          }
+
+          dayBox.appendChild(tile);
+        });
+
+        // Make the drop area big!
+        const minHeightPx = Math.max(150, (dayTiles.length + 1.5) * baseTileHeight);
+        dayBox.style.minHeight = minHeightPx + "px";
+
+        // Drag into empty day
+        dayBox.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          if (!draggingId) return;
+          if (dayTiles.length === 0) {
+            dragTargetDay = date;
+            dragOverId = null;
+            dragOverPos = "day";
+            renderAll();
+          }
+        });
+
+        dayBox.ondrop = (e) => {
+          e.preventDefault();
+          if (!draggingId) return;
+          if (dragOverPos === "day" || dayTiles.length === 0) {
+            moveTileToDay(draggingId, date, 0);
+          }
+          draggingId = null;
+          dragOverId = null;
+          dragOverPos = null;
+          dragTargetDay = null;
+          renderAll();
+        };
+
+        calendarEl.appendChild(dayBox);
       }
-    });
+    }
 
-    dayBox.ondrop = (e) => {
-      e.preventDefault();
-      if (!draggingId) return;
-      if (dragOverPos === "day" || dayTiles.length === 0) {
-        moveTileToDay(draggingId, date, 0);
-      }
-      draggingId = null;
-      dragOverId = null;
-      dragOverPos = null;
-      dragTargetDay = null;
-      renderAll();
-    };
-
-    calendarEl.appendChild(dayBox);
-  }
-}
-
-
-    function renderTile(data, dayTiles = null, idxInDay = null, curDay = null) {
+    function renderTile(data, siblingTiles, idxInDay) {
       const tile = document.createElement("div");
       tile.className = `tile color-${data.color}`;
       tile.draggable = true;
       tile.dataset.id = data.id;
+
+      // Up/Down arrow buttons for reordering
+      if (data.location) {
+        // Only show in calendar, not holding area
+        const upBtn = document.createElement("button");
+        upBtn.className = "up-btn";
+        upBtn.innerHTML = "&#9650;"; // ▲
+        upBtn.title = "Move Up";
+        upBtn.onclick = (e) => {
+          e.stopPropagation();
+          moveTileInDay(data.id, -1, data.location);
+        };
+        if (idxInDay === 0) upBtn.disabled = true;
+        tile.appendChild(upBtn);
+
+        const downBtn = document.createElement("button");
+        downBtn.className = "down-btn";
+        downBtn.innerHTML = "&#9660;"; // ▼
+        downBtn.title = "Move Down";
+        downBtn.onclick = (e) => {
+          e.stopPropagation();
+          moveTileInDay(data.id, 1, data.location);
+        };
+        if (idxInDay === siblingTiles.length - 1) downBtn.disabled = true;
+        tile.appendChild(downBtn);
+      }
 
       let isEditing = false;
       const content = document.createElement("div");
@@ -327,36 +403,7 @@
         }
       });
 
-      // Up/down arrow logic (only show when reordering is possible)
-      if (dayTiles && idxInDay !== null) {
-        // Up arrow
-        const upBtn = document.createElement("button");
-        upBtn.className = "up-btn";
-        upBtn.type = "button";
-        upBtn.innerHTML = "▲";
-        upBtn.title = "Move Up";
-        upBtn.onclick = (e) => {
-          e.stopPropagation();
-          moveTileWithinDay(data.id, curDay, -1);
-        };
-        if (idxInDay === 0) upBtn.disabled = true;
-        tile.appendChild(upBtn);
-
-        // Down arrow
-        const downBtn = document.createElement("button");
-        downBtn.className = "down-btn";
-        downBtn.type = "button";
-        downBtn.innerHTML = "▼";
-        downBtn.title = "Move Down";
-        downBtn.onclick = (e) => {
-          e.stopPropagation();
-          moveTileWithinDay(data.id, curDay, 1);
-        };
-        if (idxInDay === dayTiles.length - 1) downBtn.disabled = true;
-        tile.appendChild(downBtn);
-      }
-
-      // Delete button
+      // Delete button (big black X)
       const del = document.createElement("button");
       del.className = "del-btn";
       del.type = "button";
@@ -368,7 +415,7 @@
         syncToFirestore();
       };
 
-      // Color cycle button
+      // Color cycle button (bottom right)
       const colorBtn = document.createElement("button");
       colorBtn.className = "color-btn";
       colorBtn.type = "button";
@@ -394,75 +441,35 @@
         tile.style.marginBottom = "3px";
       }
 
-      // Drag/drop events for Trello-style movement
-      tile.ondragstart = (e) => {
-        draggingId = data.id;
-        dragTargetDay = data.location;
-        setTimeout(() => tile.classList.add("dragging"), 0);
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", data.id);
-      };
-
-      tile.ondragend = (e) => {
-        draggingId = null;
-        dragOverId = null;
-        dragTargetDay = null;
-        dragOverPos = null;
-        renderAll();
-      };
-
-      tile.ondragover = (e) => {
-        if (!draggingId || draggingId === data.id) return;
-        e.preventDefault();
-        const rect = tile.getBoundingClientRect();
-        const midpoint = rect.top + rect.height / 2;
-        dragOverId = data.id;
-        dragOverPos = (e.clientY < midpoint) ? "above" : "below";
-        dragTargetDay = curDay;
-        renderAll();
-      };
-
-      tile.ondrop = (e) => {
-        e.preventDefault();
-        handleTileDrop(data.id, dragOverPos, curDay);
-      };
-
-      tile.ondragleave = (e) => {
-        dragOverId = null;
-        dragOverPos = null;
-        renderAll();
-      };
-
       return tile;
     }
 
-    // Move tile up or down within the same day or holding area
-    function moveTileWithinDay(id, date, direction) {
-      const filtered = tiles.filter(t => t.location === date);
-      const idx = filtered.findIndex(t => t.id === id);
-      if (idx === -1) return;
-      const swapIdx = idx + direction;
-      if (swapIdx < 0 || swapIdx >= filtered.length) return;
-      // Find actual global indices
-      const globalIndices = filtered.map(t => tiles.findIndex(t2 => t2.id === t.id));
-      const curGlobalIdx = globalIndices[idx];
-      const swapGlobalIdx = globalIndices[swapIdx];
+    // Up/down movement
+    function moveTileInDay(tileId, direction, location) {
+      // Get indices for only that day's tiles
+      const dayTiles = tiles.filter(t => t.location === location);
+      const globalDayIdxs = dayTiles.map(dayTile => tiles.findIndex(t => t.id === dayTile.id));
+      const idx = dayTiles.findIndex(t => t.id === tileId);
+      const targetIdx = idx + direction;
+      if (targetIdx < 0 || targetIdx >= dayTiles.length) return; // Out of bounds
       // Swap in global array
-      const temp = tiles[curGlobalIdx];
-      tiles[curGlobalIdx] = tiles[swapGlobalIdx];
-      tiles[swapGlobalIdx] = temp;
+      const globalIdxA = globalDayIdxs[idx];
+      const globalIdxB = globalDayIdxs[targetIdx];
+      [tiles[globalIdxA], tiles[globalIdxB]] = [tiles[globalIdxB], tiles[globalIdxA]];
       syncToFirestore();
     }
 
-    // Trello-style stacking
+    // Drag & drop helpers for Trello-style stacking
     function handleDayDragOver(e, date) {
       if (!draggingId) return;
+      e.preventDefault();
       dragTargetDay = date;
       dragOverId = null;
       dragOverPos = "day";
     }
 
     function handleDayDrop(e, date) {
+      e.preventDefault();
       if (!draggingId) return;
       moveTileToDay(draggingId, date, null); // end of list
       draggingId = null;
@@ -474,11 +481,14 @@
 
     function handleTileDrop(targetId, position, date) {
       if (!draggingId) return;
+      // Remove from current position
       const moving = tiles.find(t => t.id === draggingId);
       tiles = tiles.filter(t => t.id !== draggingId);
+      // Find new index in the array for the date
       let dayTiles = tiles.filter(t => t.location === date);
       let idx = dayTiles.findIndex(t => t.id === targetId);
       if (idx === -1) idx = dayTiles.length;
+      // Compute global array insertion point
       let beforeIdx = null;
       if (position === "above") {
         beforeIdx = tiles.findIndex((t, i) => t.id === targetId);
@@ -501,9 +511,11 @@
       const moving = tiles.find(t => t.id === id);
       tiles = tiles.filter(t => t.id !== id);
       moving.location = date;
+      // Insert at end or given index
       if (atIndex === null) {
         tiles.push(moving);
       } else {
+        // find the global insertion index
         let globalIdx = 0, seen = 0;
         for (; globalIdx < tiles.length && seen < atIndex; globalIdx++) {
           if (tiles[globalIdx].location === date) seen++;
@@ -513,26 +525,75 @@
       syncToFirestore();
     }
 
-    // Holding area: now always accepts drop, even with tiles present
+    // Holding area
     function renderHolding() {
       holdingAreaEl.innerHTML = '';
       const holdingTiles = tiles.filter(t => !t.location);
       holdingTiles.forEach((tileData, idx) => {
-        const tile = renderTile(tileData, holdingTiles, idx, null);
+        const tile = renderTile(tileData, holdingTiles, idx);
+
+        tile.ondragstart = (e) => {
+          draggingId = tileData.id;
+          dragTargetDay = null;
+          setTimeout(() => tile.classList.add("dragging"), 0);
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", tileData.id);
+        };
+
+        tile.ondragend = (e) => {
+          draggingId = null;
+          dragOverId = null;
+          dragTargetDay = null;
+          dragOverPos = null;
+          renderAll();
+        };
+
+        tile.ondragover = (e) => {
+          if (!draggingId || draggingId === tileData.id) return;
+          e.preventDefault();
+          const rect = tile.getBoundingClientRect();
+          const midpoint = rect.top + rect.height / 2;
+          dragOverId = tileData.id;
+          dragOverPos = (e.clientY < midpoint) ? "above" : "below";
+          dragTargetDay = null;
+          renderAll();
+        };
+
+        tile.ondrop = (e) => {
+          e.preventDefault();
+          // Move to new index in holding area
+          handleTileDrop(tileData.id, dragOverPos, null);
+        };
+
+        tile.ondragleave = (e) => {
+          dragOverId = null;
+          dragOverPos = null;
+          renderAll();
+        };
+
+        if (draggingId && dragOverId === tileData.id) {
+          tile.classList.add("drag-over");
+        }
+
         holdingAreaEl.appendChild(tile);
       });
 
       holdingAreaEl.ondragover = (e) => {
-        e.preventDefault();
         if (!draggingId) return;
-        dragOverId = null;
-        dragOverPos = "day";
-        dragTargetDay = null;
+        e.preventDefault();
+        if (holdingTiles.length === 0) {
+          dragOverId = null;
+          dragOverPos = "day";
+          dragTargetDay = null;
+          renderAll();
+        }
       };
       holdingAreaEl.ondrop = (e) => {
         e.preventDefault();
         if (!draggingId) return;
-        moveTileToDay(draggingId, null, null);
+        if (dragOverPos === "day" || holdingTiles.length === 0) {
+          moveTileToDay(draggingId, null, 0);
+        }
         draggingId = null;
         dragOverId = null;
         dragOverPos = null;
@@ -541,10 +602,12 @@
       };
     }
 
+    // Sync with Firestore
     async function syncToFirestore() {
       await setDoc(docRef, { tiles });
     }
 
+    // Listen to Firestore changes
     onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists() && Array.isArray(docSnap.data().tiles)) {
         tiles = docSnap.data().tiles;
@@ -557,6 +620,7 @@
       renderHolding();
     }
 
+    // Create tile
     window.createTile = function createTile() {
       const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       tiles.push({ id, text: "New Activity", color: 0, location: null });
@@ -566,6 +630,7 @@
     window.addEventListener("DOMContentLoaded", () => {
       renderAll();
     });
+
   </script>
 </head>
 <body>
