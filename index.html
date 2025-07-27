@@ -44,23 +44,6 @@
       border: none; cursor: pointer; font-size: 14px;
     }
     .tile .del-btn { right: 2px; color: #000; font-weight: bold; }
-    .tile .color-btn { right: 26px; color: #e0e0e0; }
-    .color-menu {
-      position: absolute; top: 24px; right: 26px;
-      background: #333; padding: 4px; border: 1px solid #555;
-      border-radius: 4px; display: none; gap: 4px;
-    }
-    .color-menu.show { display: flex; }
-    .swatch {
-      width: 16px; height: 16px; border-radius: 3px;
-      cursor: pointer; border: 1px solid #666;
-    }
-    .swatch.color-0 { background: #ffdcdc; }
-    .swatch.color-1 { background: #fff4c2; }
-    .swatch.color-2 { background: #dcffe4; }
-    .swatch.color-3 { background: #dceaff; }
-    .swatch.color-4 { background: #f0dcff; }
-    .swatch.color-5 { background: #ffebdc; }
     .holding-area {
       margin-top: 2rem; padding: 1rem; background: #2a2a2a;
       min-height: 120px; display: flex; gap: 0.5rem;
@@ -80,7 +63,6 @@
     const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const dates=['July 27','July 28','July 29','July 30','July 31','August 1','August 2',
                  'August 3','August 4','August 5','August 6','August 7','August 8','August 9'];
-    const pastelColors=[0,1,2,3,4,5];
     let state = JSON.parse(localStorage.getItem('calendarState')||'{}');
     const calendarEl = document.getElementById('calendar');
     const holdingAreaEl = document.getElementById('holdingArea');
@@ -98,16 +80,15 @@
       });
     }
 
-    function createTile(text='New Activity',color=0,location=null){
+    function createTile(text='New Activity',location=null){
       if(typeof text!=='string') text='New Activity';
-      if(typeof color!=='number') color=0;
       const id=`tile-${Date.now()}-${Math.random().toString(36).substr(2,5)}`;
-      state[id]={id,text,color,location}; renderAll(); saveState();
+      state[id]={id,text,location}; renderAll(); saveState();
     }
 
     function renderTile(data){
       const tile = document.createElement('div');
-      tile.className=`tile color-${data.color}`; tile.draggable=true;
+      tile.className='tile'; tile.draggable=true;
       tile.dataset.id = data.id;
 
       // Content area
@@ -123,26 +104,9 @@
       del.className='del-btn'; del.innerText='X';
       del.addEventListener('click',e=>{ e.stopPropagation(); delete state[data.id]; renderAll(); saveState(); });
 
-      // Color button + menu
-      const colorBtn = document.createElement('button');
-      colorBtn.className='color-btn'; colorBtn.innerText='🎨';
-      const menu = document.createElement('div'); menu.className='color-menu';
-      pastelColors.forEach(i=>{
-        const sw = document.createElement('div'); sw.className=`swatch color-${i}`;
-        sw.addEventListener('click',ev=>{
-          ev.stopPropagation();
-          if(state[data.id]) state[data.id].color = i;
-          menu.classList.remove('show'); renderAll(); saveState();
-        });
-        menu.appendChild(sw);
-      });
-      colorBtn.addEventListener('click',e=>{ e.stopPropagation(); menu.classList.toggle('show'); });
-
       tile.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',data.id));
       tile.appendChild(content);
       tile.appendChild(del);
-      tile.appendChild(colorBtn);
-      tile.appendChild(menu);
 
       const parent = data.location && calendarEl.querySelector(`[data-date="${data.location}"]`)
         ? calendarEl.querySelector(`[data-date="${data.location}"]`)
@@ -157,4 +121,5 @@
     renderAll();
   </script>
 </body>
-</html>
+</html>"""
+
