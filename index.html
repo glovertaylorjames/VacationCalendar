@@ -243,7 +243,7 @@
 
         // Calculate minHeight based on 3x tiles
         const dayTiles = tiles.filter(t => t.location === date);
-        const minHeightPx = Math.max(150, (dayTiles.length + 3) * baseTileHeight);
+        const minHeightPx = Math.max(150, (dayTiles.length + 1.5) * baseTileHeight);
         dayBox.style.minHeight = minHeightPx + "px";
 
         // Unified dragover/drop handlers for ALL .day elements:
