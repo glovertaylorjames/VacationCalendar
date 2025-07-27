@@ -214,21 +214,22 @@
 
     // --- Calendar UI functions ---
     function renderCalendar() {
-      calendarEl.innerHTML = "";
-      for (let i = 0; i < 14; i++) {
-        const dayBox = document.createElement("div");
-        dayBox.className = "day";
-        dayBox.dataset.date = dates[i];
-        dayBox.ondragover = allowDrop;
-        dayBox.ondrop = (e) => handleDropZoneDrop(e, dates[i], 0);
+  calendarEl.innerHTML = "";
+  for (let i = 0; i < 14; i++) {
+    const dayBox = document.createElement("div");
+    dayBox.className = "day";
+    dayBox.dataset.date = dates[i];
+    // Remove the allowDrop assignment!
+    dayBox.ondrop = (e) => handleDropZoneDrop(e, dates[i], 0);
 
-        const title = document.createElement("h3");
-        title.innerHTML = `${days[i % 7]}<br>${dates[i]}`;
-        dayBox.appendChild(title);
+    const title = document.createElement("h3");
+    title.innerHTML = `${days[i % 7]}<br>${dates[i]}`;
+    dayBox.appendChild(title);
 
-        calendarEl.appendChild(dayBox);
-      }
-    }
+    calendarEl.appendChild(dayBox);
+  }
+}
+
 
     function createTile(text = "New Activity", color = 0, location = null) {
       const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
