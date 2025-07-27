@@ -185,14 +185,24 @@
 
     // --- Helper: linkify function ---
     function linkify(html) {
-  // Replace URLs with <a>, but keep <br> and other tags intact.
-  // Only match URLs not inside existing tags.
-  return html.replace(
-    /(https?:\/\/[^\s<]+)/g,
-    url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
-  );
-}
+      // Replace URLs with <a>, but keep <br> and other tags intact.
+      // Only match URLs not inside existing tags.
+      return html.replace(
+        /(https?:\/\/[^\s<]+)/g,
+        url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+      );
+    }
 
+    // --- Helper: normalize line breaks ---
+    function normalizeLineBreaks(html) {
+      // Replace <div> with nothing and </div> with <br>
+      // Prevent double <br> as well
+      return html
+        .replace(/<div>/g, '')
+        .replace(/<\/div>/g, '<br>')
+        .replace(/<br><br>/g, '<br>')
+        .replace(/<br>$/, ''); // Remove trailing <br>
+    }
 
     // --- Calendar UI functions ---
     function renderCalendar() {
@@ -236,7 +246,8 @@
       function renderContent() {
         if (isEditing) {
           content.contentEditable = true;
-          content.innerText = data.text;
+          // Set innerHTML for edit mode so <br> is kept for line breaks
+          content.innerHTML = (data.text || "");
           content.focus();
         } else {
           content.contentEditable = false;
@@ -255,7 +266,8 @@
       content.addEventListener("blur", () => {
         if (isEditing) {
           isEditing = false;
-          state[data.id].text = content.innerHTML.trim();
+          // Option 1: Normalize line breaks and strip <div> for <br>
+          state[data.id].text = normalizeLineBreaks(content.innerHTML.trim());
           syncToFirestore();
           renderContent();
         }
