@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; }
-
     body {
       font-family: sans-serif;
       margin: 0;
@@ -14,110 +13,58 @@
       background: #121212;
       color: #e0e0e0;
     }
-
-    .controls {
-      margin: 0.5rem 0;
-    }
-
+    .controls { margin: 0.5rem 0; }
     .controls button {
-      background: #333;
-      color: #e0e0e0;
-      border: none;
-      padding: 0.5rem 1rem;
-      border-radius: 4px;
-      cursor: pointer;
+      background: #333; color: #e0e0e0; border: none;
+      padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;
     }
-
     .calendar {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 0.5rem;
+      display: grid; grid-template-columns: repeat(7,1fr); gap: 0.5rem;
     }
-
     .day {
-      border: 1px solid #333;
-      background: #1e1e1e;
-      min-height: 150px;
-      padding: 5px;
-      position: relative;
-      display: flex;
-      flex-direction: column;
+      border: 1px solid #333; background: #1e1e1e;
+      min-height: 150px; padding: 5px; display: flex; flex-direction: column;
     }
-
     .day h3 {
-      margin: 0 0 5px;
-      font-size: 0.9rem;
-      color: #e0e0e0;
+      margin: 0 0 5px; font-size: 0.9rem; color: #e0e0e0;
     }
-
     .tile {
-      background: #ffdcdc;
-      color: #000;
-      padding: 0.5rem;
-      margin: 3px 0;
-      border-radius: 6px;
-      cursor: move;
-      box-shadow: 1px 1px 4px rgba(0,0,0,0.1);
-      position: relative;
-      user-select: none;
-      width: 100%;
-      min-height: 3.5rem;
-      text-align: center;
+      background: #ffdcdc; color: #000;
+      padding: 0.5rem; margin: 3px 0; border-radius: 6px;
+      position: relative; user-select: none;
+      width: 100%; min-height: 5rem; display: flex; align-items: center;
+      justify-content: center;
     }
-
-    .tile[contenteditable="true"] {
+    .tile-content {
+      flex: 1; width: 100%; text-align: center;
       outline: none;
     }
-
     .tile button {
-      position: absolute;
-      top: 2px;
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      font-size: 14px;
+      position: absolute; top: 2px; background: transparent;
+      border: none; cursor: pointer; font-size: 14px;
     }
-
     .tile .del-btn { right: 2px; color: #000; font-weight: bold; }
     .tile .color-btn { right: 26px; color: #e0e0e0; }
-
     .color-menu {
-      position: absolute;
-      top: 24px;
-      right: 26px;
-      background: #333;
-      padding: 4px;
-      border: 1px solid #555;
-      border-radius: 4px;
-      display: none;
-      gap: 4px;
+      position: absolute; top: 24px; right: 26px;
+      background: #333; padding: 4px; border: 1px solid #555;
+      border-radius: 4px; display: none; gap: 4px;
     }
     .color-menu.show { display: flex; }
-
     .swatch {
-      width: 16px;
-      height: 16px;
-      border-radius: 3px;
-      cursor: pointer;
-      border: 1px solid #666;
+      width: 16px; height: 16px; border-radius: 3px;
+      cursor: pointer; border: 1px solid #666;
     }
-
     .swatch.color-0 { background: #ffdcdc; }
     .swatch.color-1 { background: #fff4c2; }
     .swatch.color-2 { background: #dcffe4; }
     .swatch.color-3 { background: #dceaff; }
     .swatch.color-4 { background: #f0dcff; }
     .swatch.color-5 { background: #ffebdc; }
-
     .holding-area {
-      margin-top: 2rem;
-      padding: 1rem;
-      background: #2a2a2a;
-      min-height: 120px;
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      border-radius: 8px;
+      margin-top: 2rem; padding: 1rem; background: #2a2a2a;
+      min-height: 120px; display: flex; gap: 0.5rem;
+      flex-wrap: wrap; border-radius: 8px;
     }
   </style>
 </head>
@@ -134,9 +81,9 @@
     const dates=['July 27','July 28','July 29','July 30','July 31','August 1','August 2',
                  'August 3','August 4','August 5','August 6','August 7','August 8','August 9'];
     const pastelColors=[0,1,2,3,4,5];
-    let state=JSON.parse(localStorage.getItem('calendarState')||'{}');
-    const calendarEl=document.getElementById('calendar');
-    const holdingAreaEl=document.getElementById('holdingArea');
+    let state = JSON.parse(localStorage.getItem('calendarState')||'{}');
+    const calendarEl = document.getElementById('calendar');
+    const holdingAreaEl = document.getElementById('holdingArea');
     document.getElementById('createBtn').addEventListener('click',()=>createTile());
 
     function renderCalendar(){
@@ -145,7 +92,8 @@
         const dayBox=document.createElement('div');
         dayBox.className='day'; dayBox.dataset.date=date;
         dayBox.ondragover=allowDrop; dayBox.ondrop=e=>drop(e,date);
-        const title=document.createElement('h3'); title.innerText=`${days[i%7]} (${date})`;
+        const title=document.createElement('h3');
+        title.innerText=`${days[i%7]} (${date})`;
         dayBox.appendChild(title); calendarEl.appendChild(dayBox);
       });
     }
@@ -158,55 +106,49 @@
     }
 
     function renderTile(data){
-      const tile=document.createElement('div');
+      const tile = document.createElement('div');
       tile.className=`tile color-${data.color}`; tile.draggable=true;
-      tile.setAttribute('contenteditable','true'); tile.innerText=data.text;
-      tile.dataset.id=data.id;
-      // prevent controls from being editable
-      tile.addEventListener('keydown',e=>{
-        if(e.target!==tile) e.stopPropagation();
+
+      // Content area
+      const content = document.createElement('div');
+      content.className='tile-content'; content.contentEditable=true;
+      content.innerText = data.text;
+      content.addEventListener('input', ()=>{
+        if(state[data.id]){ state[data.id].text = content.innerText.trim(); saveState(); }
       });
 
-      // sync text
-      tile.addEventListener('input',()=>{
-        if(state[data.id]){ state[data.id].text=tile.innerText.trim(); saveState(); }
-      });
-
-      const del=document.createElement('button'); del.className='del-btn';
-      del.innerText='X'; del.setAttribute('contenteditable','false');
+      // Delete button
+      const del = document.createElement('button');
+      del.className='del-btn'; del.innerText='X';
       del.addEventListener('click',e=>{ e.stopPropagation(); delete state[data.id]; renderAll(); saveState(); });
 
-      const colorBtn=document.createElement('button'); colorBtn.className='color-btn';
-      colorBtn.innerText='🎨'; colorBtn.setAttribute('contenteditable','false');
-      const menu=document.createElement('div'); menu.className='color-menu';
-      menu.setAttribute('contenteditable','false');
+      // Color button + menu
+      const colorBtn = document.createElement('button');
+      colorBtn.className='color-btn'; colorBtn.innerText='🎨';
+      const menu = document.createElement('div'); menu.className='color-menu';
       pastelColors.forEach(i=>{
-        const swatch=document.createElement('div'); swatch.className=`swatch color-${i}`;
-        swatch.dataset.color=i; swatch.setAttribute('contenteditable','false');
-        swatch.addEventListener('click',ev=>{
-          ev.stopPropagation(); state[data.id].color=parseInt(swatch.dataset.color);
-          menu.classList.remove('show'); renderAll(); saveState();
-        }); menu.appendChild(swatch);
+        const sw = document.createElement('div'); sw.className=`swatch color-${i}`;
+        sw.addEventListener('click',ev=>{ ev.stopPropagation(); state[data.id].color = i; menu.classList.remove('show'); renderAll(); saveState(); });
+        menu.appendChild(sw);
       });
       colorBtn.addEventListener('click',e=>{ e.stopPropagation(); menu.classList.toggle('show'); });
 
       tile.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',data.id));
+      tile.appendChild(content);
+      tile.appendChild(del);
+      tile.appendChild(colorBtn);
+      tile.appendChild(menu);
 
-      tile.appendChild(del); tile.appendChild(colorBtn); tile.appendChild(menu);
-      const parent= data.location && calendarEl.querySelector(`[data-date="${data.location}"]`)
+      const parent = data.location && calendarEl.querySelector(`[data-date="${data.location}"]`)
         ? calendarEl.querySelector(`[data-date="${data.location}"]`)
         : holdingAreaEl;
       parent.appendChild(tile);
     }
 
     function allowDrop(e){ e.preventDefault(); }
-    function drop(e,date){ e.preventDefault(); const id=e.dataTransfer.getData('text/plain');
-      if(state[id]) state[id].location=date; renderAll(); saveState();
-    }
-
+    function drop(e,date){ e.preventDefault(); const id=e.dataTransfer.getData('text/plain'); if(state[id]) state[id].location = date; renderAll(); saveState(); }
     function renderAll(){ renderCalendar(); Object.values(state).forEach(renderTile); }
     function saveState(){ localStorage.setItem('calendarState',JSON.stringify(state)); }
-
     renderAll();
   </script>
 </body>
