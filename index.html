@@ -249,21 +249,13 @@
         renderContent();
       });
 
-      // Finish editing on blur
+      // Finish editing on blur only
       content.addEventListener("blur", () => {
         if (isEditing) {
           isEditing = false;
           state[data.id].text = content.innerText.trim();
           syncToFirestore();
           renderContent();
-        }
-      });
-
-      // Finish editing on Enter
-      content.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          content.blur();
         }
       });
 
