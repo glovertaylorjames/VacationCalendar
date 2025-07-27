@@ -7,6 +7,7 @@
   <!-- Google Fonts for Lexend -->
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;600&display=swap" rel="stylesheet">
   <style>
+    /* (styles unchanged, omitted for brevity – keep your original CSS) */
     * { box-sizing: border-box; }
     body {
       font-family: 'Lexend', Arial, sans-serif;
@@ -125,7 +126,7 @@
   <!-- Firebase SDKs (modular) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
     // Your Firebase config
     const firebaseConfig = {
@@ -187,7 +188,7 @@
       const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       const tileData = { id, text, color, location };
       state[id] = tileData;
-      syncToFirestore();
+      syncToFirestore(); // Always save to Firestore immediately
     }
 
     function renderTile(data) {
@@ -203,13 +204,12 @@
       content.spellcheck = true;
       content.innerText = data.text;
       content.addEventListener("input", (e) => {
-      state[data.id].text = content.innerText.trim();
-      // NO syncToFirestore here!
-    });
-    content.addEventListener("blur", (e) => {
-      syncToFirestore();
-    });
-
+        state[data.id].text = content.innerText.trim();
+        // Do NOT syncToFirestore here!
+      });
+      content.addEventListener("blur", (e) => {
+        syncToFirestore(); // Save to Firestore when done editing
+      });
 
       // Delete button (big black X)
       const del = document.createElement("button");
@@ -272,7 +272,6 @@
     }
 
     // --- Firestore Sync ---
-    // Save the state to Firestore
     async function syncToFirestore() {
       await setDoc(docRef, { state });
     }
