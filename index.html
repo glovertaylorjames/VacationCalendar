@@ -307,8 +307,8 @@
           dayBox.appendChild(tile);
         });
 
-        // Make the drop area big!
-        const minHeightPx = Math.max(150, (dayTiles.length + 1.5) * baseTileHeight);
+        // Make the drop area much bigger!
+        const minHeightPx = Math.max(150, (dayTiles.length + 3) * baseTileHeight);
         dayBox.style.minHeight = minHeightPx + "px";
 
         // Drag into empty day
@@ -422,9 +422,14 @@
       colorBtn.innerText = "🎨";
       colorBtn.title = "Change Color";
       colorBtn.onclick = (e) => {
+        e.preventDefault(); // <<=== THIS IS KEY FOR FIXING COLOR BUG
         e.stopPropagation();
-        data.color = (data.color + 1) % pastelColors.length;
-        syncToFirestore();
+        // Use id lookup for always-fresh tile object reference
+        const idx = tiles.findIndex(t => t.id === data.id);
+        if (idx !== -1) {
+          tiles[idx].color = (tiles[idx].color + 1) % pastelColors.length;
+          syncToFirestore();
+        }
       };
 
       tile.appendChild(content);
@@ -581,12 +586,10 @@
       holdingAreaEl.ondragover = (e) => {
         if (!draggingId) return;
         e.preventDefault();
-        if (holdingTiles.length === 0) {
-          dragOverId = null;
-          dragOverPos = "day";
-          dragTargetDay = null;
-          renderAll();
-        }
+        dragOverId = null;
+        dragOverPos = "day";
+        dragTargetDay = null;
+        renderAll();
       };
       holdingAreaEl.ondrop = (e) => {
         e.preventDefault();
