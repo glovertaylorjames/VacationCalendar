@@ -131,7 +131,7 @@
 
     const calendarEl = document.getElementById("calendar");
     const holdingAreaEl = document.getElementById("holdingArea");
-    document.getElementById('createBtn').addEventListener('click',createTile);
+    document.getElementById('createBtn').addEventListener('click', () => createTile());
 
     function renderCalendar(){
       calendarEl.innerHTML="";
@@ -161,17 +161,14 @@
       tile.innerText=data.text;
       tile.dataset.id=data.id;
 
-      // disable draggable on focus, re-enable on blur
       tile.addEventListener('focus',e=>{e.stopPropagation();tile.draggable=false});
       tile.addEventListener('blur',e=>{e.stopPropagation();tile.draggable=true});
       tile.addEventListener('input',()=>{state[data.id].text=tile.innerText.trim();saveState()});
 
-      // delete button
       const del=document.createElement('button');
       del.className='del-btn'; del.innerText='X';
       del.addEventListener('click',e=>{e.stopPropagation();delete state[data.id];renderAll();saveState()});
 
-      // color picker
       const colorBtn=document.createElement('button');
       colorBtn.className='color-btn'; colorBtn.innerText='🎨';
       const menu=document.createElement('div');menu.className='color-menu';
