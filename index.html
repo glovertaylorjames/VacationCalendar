@@ -7,7 +7,6 @@
   <!-- Google Fonts for Lexend -->
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;600&display=swap" rel="stylesheet">
   <style>
-    /* (styles unchanged, omitted for brevity – keep your original CSS) */
     * { box-sizing: border-box; }
     body {
       font-family: 'Lexend', Arial, sans-serif;
@@ -85,6 +84,13 @@
       min-height: 2.5rem;
       font-family: 'Lexend', Arial, sans-serif;
       font-weight: 300;
+      word-break: break-word;
+      cursor: pointer;
+    }
+    .tile-content[contenteditable="true"] {
+      background: #f9f9f9;
+      color: #222;
+      cursor: text;
     }
     .tile .del-btn {
       position: absolute;
@@ -122,11 +128,15 @@
       flex-wrap: wrap;
       border-radius: 8px;
     }
+    a {
+      color: #1266cc;
+      word-break: break-all;
+    }
   </style>
   <!-- Firebase SDKs (modular) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
     // Your Firebase config
     const firebaseConfig = {
@@ -144,6 +154,14 @@
     const db = getFirestore(app);
     // Firestore doc location for your shared calendar state
     const docRef = doc(db, "calendarState", "shared");
+
+    // Ensure document exists on first load
+    (async () => {
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) {
+        await setDoc(docRef, { state: {} });
+      }
+    })();
 
     // Calendar logic
     const days = [
@@ -164,6 +182,15 @@
     document.body.insertBefore(calendarEl, document.body.children[0]);
 
     const holdingAreaEl = document.getElementById("holdingArea");
+
+    // --- Helper: linkify function ---
+    function linkify(text) {
+      // Replace URLs starting with http:// or https://
+      return text.replace(
+        /(https?:\/\/[^\s]+)/g,
+        url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+      );
+    }
 
     // --- Calendar UI functions ---
     function renderCalendar() {
@@ -197,18 +224,47 @@
       tile.draggable = true;
       tile.dataset.id = data.id;
 
+      let isEditing = false;
+
       // Editable content area
       const content = document.createElement("div");
       content.className = "tile-content";
-      content.contentEditable = true;
       content.spellcheck = true;
-      content.innerText = data.text;
-      content.addEventListener("input", (e) => {
-        state[data.id].text = content.innerText.trim();
-        // Do NOT syncToFirestore here!
+
+      function renderContent() {
+        if (isEditing) {
+          content.contentEditable = true;
+          content.innerText = data.text;
+          content.focus();
+        } else {
+          content.contentEditable = false;
+          content.innerHTML = linkify(data.text || "");
+        }
+      }
+      renderContent();
+
+      // Double-click to edit
+      content.addEventListener("dblclick", () => {
+        isEditing = true;
+        renderContent();
       });
-      content.addEventListener("blur", (e) => {
-        syncToFirestore(); // Save to Firestore when done editing
+
+      // Finish editing on blur
+      content.addEventListener("blur", () => {
+        if (isEditing) {
+          isEditing = false;
+          state[data.id].text = content.innerText.trim();
+          syncToFirestore();
+          renderContent();
+        }
+      });
+
+      // Finish editing on Enter
+      content.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          content.blur();
+        }
       });
 
       // Delete button (big black X)
@@ -269,6 +325,7 @@
       holdingAreaEl.innerHTML = '';
       renderCalendar();
       Object.values(state).forEach(renderTile);
+      setupDropTargets();
     }
 
     // --- Firestore Sync ---
@@ -305,9 +362,6 @@
         };
       });
     }
-    // Wait a little for DOM to settle
-    setTimeout(setupDropTargets, 500);
-
   </script>
 </head>
 <body>
