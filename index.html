@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Two-Week Planner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: #f7f7f7;
+    }
+
+    .controls {
+      margin-bottom: 1rem;
+    }
+
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.5rem;
+    }
+
+    .week-row {
+      display: contents;
+    }
+
+    .day {
+      border: 1px solid #ccc;
+      background: white;
+      min-height: 150px;
+      padding: 5px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .day h3 {
+      margin: 0 0 5px 0;
+      font-size: 0.9rem;
+    }
+
+    .tile {
+      background: #ffdcdc;
+      padding: 0.5rem;
+      margin: 3px 0;
+      border-radius: 6px;
+      cursor: move;
+      box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.1);
+      position: relative;
+      user-select: none;
+    }
+
+    .tile[contenteditable="true"] {
+      outline: none;
+    }
+
+    .tile button {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: transparent;
+      border: none;
+      color: #333;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .tile-controls {
+      display: flex;
+      justify-content: flex-end;
+      gap: 5px;
+      margin-top: 2px;
+    }
+
+    .holding-area {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #eaeaea;
+      min-height: 120px;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      border-radius: 8px;
+    }
+
+    .tile.color-0 { background: #ffdcdc; }
+    .tile.color-1 { background: #fff4c2; }
+    .tile.color-2 { background: #dcffe4; }
+    .tile.color-3 { background: #dceaff; }
+    .tile.color-4 { background: #f0dcff; }
+    .tile.color-5 { background: #ffebdc; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <button onclick="createTile()">➕ Create Tile</button>
+  </div>
+
+  <div id="calendar" class="calendar"></div>
+
+  <h3>Holding Area</h3>
+  <div id="holdingArea" class="holding-area" ondragover="allowDrop(event)" ondrop="drop(event, null)"></div>
+
+  <script>
+    const days = [
+      'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+    ];
+    const dates = [
+      'July 27', 'July 28', 'July 29', 'July 30', 'July 31', 'August 1', 'August 2',
+      'August 3', 'August 4', 'August 5', 'August 6', 'August 7', 'August 8', 'August 9'
+    ];
+    const pastelColors = [0, 1, 2, 3, 4, 5];
+
+    let state = JSON.parse(localStorage.getItem("calendarState") || "{}");
+
+    const calendarEl = document.getElementById("calendar");
+    const holdingAreaEl = document.getElementById("holdingArea");
+
+    function renderCalendar() {
+      calendarEl.innerHTML = "";
+      for (let i = 0; i < 14; i++) {
+        const dayBox = document.createElement("div");
+        dayBox.className = "day";
+        dayBox.dataset.date = dates[i];
+        dayBox.ondragover = allowDrop;
+        dayBox.ondrop = (e) => drop(e, dates[i]);
+
+        const title = document.createElement("h3");
+        title.innerText = `${days[i % 7]} (${dates[i]})`;
+        dayBox.appendChild(title);
+
+        calendarEl.appendChild(dayBox);
+      }
+    }
+
+    function createTile(text = "New Activity", color = 0, location = null) {
+      const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      const tileData = { id, text, color, location };
+      state[id] = tileData;
+      renderTile(tileData);
+      saveState();
+    }
+
+    function renderTile(data) {
+      const tile = document.createElement("div");
+      tile.className = `tile color-${data.color}`;
+      tile.draggable = true;
+      tile.contentEditable = true;
+      tile.innerText = data.text;
+      tile.dataset.id = data.id;
+
+      tile.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", data.id);
+      });
+
+      tile.addEventListener("input", (e) => {
+        state[data.id].text = tile.innerText.trim();
+        saveState();
+      });
+
+      tile.addEventListener("click", () => {
+        // Prevent dragging while editing
+        tile.draggable = false;
+      });
+
+      tile.addEventListener("blur", () => {
+        tile.draggable = true;
+      });
+
+      const del = document.createElement("button");
+      del.innerText = "🗑";
+      del.onclick = (e) => {
+        e.stopPropagation();
+        delete state[data.id];
+        tile.remove();
+        saveState();
+      };
+
+      const colorBtn = document.createElement("button");
+      colorBtn.innerText = "🎨";
+      colorBtn.onclick = (e) => {
+        e.stopPropagation();
+        state[data.id].color = (state[data.id].color + 1) % pastelColors.length;
+        renderAll();
+        saveState();
+      };
+
+      tile.appendChild(del);
+      tile.appendChild(colorBtn);
+
+      // Insert into correct place
+      if (data.location === null) {
+        holdingAreaEl.appendChild(tile);
+      } else {
+        const dayBox = [...calendarEl.children].find(d => d.dataset.date === data.location);
+        if (dayBox) dayBox.appendChild(tile);
+        else holdingAreaEl.appendChild(tile);
+      }
+    }
+
+    function allowDrop(e) {
+      e.preventDefault();
+    }
+
+    function drop(e, date) {
+      e.preventDefault();
+      const id = e.dataTransfer.getData("text/plain");
+      state[id].location = date;
+      renderAll();
+      saveState();
+    }
+
+    function renderAll() {
+      renderCalendar();
+      Object.values(state).forEach(renderTile);
+    }
+
+    function saveState() {
+      localStorage.setItem("calendarState", JSON.stringify(state));
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>
