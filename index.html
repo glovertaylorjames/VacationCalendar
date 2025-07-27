@@ -150,6 +150,9 @@
     }
 
     function createTile(text = 'New Activity', color = 0, location = null) {
+      // Ensure valid arguments (prevent event objects creating new tiles)
+      if (typeof text !== 'string') text = 'New Activity';
+      if (typeof color !== 'number') color = 0;
       const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2,5)}`;
       state[id] = { id, text, color, location };
       renderAll();
