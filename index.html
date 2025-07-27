@@ -193,7 +193,7 @@
     let tiles = [];
     let draggingId = null;
     let dragOverId = null;
-    let dragOverPos = null; // "above" or "below" or "day" (empty area of day)
+    let dragOverPos = null;
     let dragTargetDay = null;
 
     function linkify(text) {
@@ -219,7 +219,6 @@
         dayBox.className = "day";
         dayBox.dataset.date = date;
 
-        // ** Always allow dropping **
         dayBox.ondragover = (e) => {
           e.preventDefault();
           handleDayDragOver(e, date);
@@ -233,15 +232,13 @@
         title.innerHTML = `${days[i % 7]}<br>${date}`;
         dayBox.appendChild(title);
 
-        // Get tiles for this day
         const dayTiles = tiles
-          .map((t, idx) => ({ ...t, __idx: idx })) // track global idx
+          .map((t, idx) => ({ ...t, __idx: idx }))
           .filter(t => t.location === date);
 
         dayTiles.forEach((tileData, idx) => {
           const tile = renderTile(tileData);
 
-          // Drag events for Trello-style insertion
           tile.ondragstart = (e) => {
             draggingId = tileData.id;
             dragTargetDay = tileData.location;
@@ -261,7 +258,6 @@
           tile.ondragover = (e) => {
             if (!draggingId || draggingId === tileData.id) return;
             e.preventDefault();
-            // Decide above or below
             const rect = tile.getBoundingClientRect();
             const midpoint = rect.top + rect.height / 2;
             dragOverId = tileData.id;
@@ -281,7 +277,6 @@
             renderAll();
           };
 
-          // Highlight drag target
           if (draggingId && dragOverId === tileData.id) {
             tile.classList.add("drag-over");
           }
@@ -330,7 +325,7 @@
         }
       });
 
-      // Delete button (big black X)
+      // Delete button
       const del = document.createElement("button");
       del.className = "del-btn";
       del.type = "button";
@@ -342,7 +337,7 @@
         syncToFirestore();
       };
 
-      // Color cycle button (bottom right)
+      // Color cycle button
       const colorBtn = document.createElement("button");
       colorBtn.className = "color-btn";
       colorBtn.type = "button";
@@ -371,17 +366,15 @@
       return tile;
     }
 
-    // Drag & drop helpers for Trello-style stacking
+    // Trello-style stacking
     function handleDayDragOver(e, date) {
       if (!draggingId) return;
-      // e.preventDefault();  <-- already called above!
       dragTargetDay = date;
       dragOverId = null;
       dragOverPos = "day";
     }
 
     function handleDayDrop(e, date) {
-      // e.preventDefault();  <-- already called above!
       if (!draggingId) return;
       moveTileToDay(draggingId, date, null); // end of list
       draggingId = null;
@@ -393,14 +386,11 @@
 
     function handleTileDrop(targetId, position, date) {
       if (!draggingId) return;
-      // Remove from current position
       const moving = tiles.find(t => t.id === draggingId);
       tiles = tiles.filter(t => t.id !== draggingId);
-      // Find new index in the array for the date
       let dayTiles = tiles.filter(t => t.location === date);
       let idx = dayTiles.findIndex(t => t.id === targetId);
       if (idx === -1) idx = dayTiles.length;
-      // Compute global array insertion point
       let beforeIdx = null;
       if (position === "above") {
         beforeIdx = tiles.findIndex((t, i) => t.id === targetId);
@@ -423,11 +413,9 @@
       const moving = tiles.find(t => t.id === id);
       tiles = tiles.filter(t => t.id !== id);
       moving.location = date;
-      // Insert at end or given index
       if (atIndex === null) {
         tiles.push(moving);
       } else {
-        // find the global insertion index
         let globalIdx = 0, seen = 0;
         for (; globalIdx < tiles.length && seen < atIndex; globalIdx++) {
           if (tiles[globalIdx].location === date) seen++;
@@ -437,7 +425,7 @@
       syncToFirestore();
     }
 
-    // Holding area
+    // Holding area: now always accepts drop, even with tiles present
     function renderHolding() {
       holdingAreaEl.innerHTML = '';
       const holdingTiles = tiles.filter(t => !t.location);
@@ -473,7 +461,6 @@
 
         tile.ondrop = (e) => {
           e.preventDefault();
-          // Move to new index in holding area
           handleTileDrop(tileData.id, dragOverPos, null);
         };
 
@@ -490,22 +477,18 @@
         holdingAreaEl.appendChild(tile);
       });
 
+      // Always accept drop into the holding area
       holdingAreaEl.ondragover = (e) => {
         e.preventDefault();
         if (!draggingId) return;
-        if (holdingTiles.length === 0) {
-          dragOverId = null;
-          dragOverPos = "day";
-          dragTargetDay = null;
-          renderAll();
-        }
+        dragOverId = null;
+        dragOverPos = "day";
+        dragTargetDay = null;
       };
       holdingAreaEl.ondrop = (e) => {
         e.preventDefault();
         if (!draggingId) return;
-        if (dragOverPos === "day" || holdingTiles.length === 0) {
-          moveTileToDay(draggingId, null, 0);
-        }
+        moveTileToDay(draggingId, null, null); // always append to end
         draggingId = null;
         dragOverId = null;
         dragOverPos = null;
@@ -542,7 +525,6 @@
     window.addEventListener("DOMContentLoaded", () => {
       renderAll();
     });
-
   </script>
 </head>
 <body>
