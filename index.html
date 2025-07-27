@@ -218,8 +218,16 @@
         const dayBox = document.createElement("div");
         dayBox.className = "day";
         dayBox.dataset.date = date;
-        dayBox.ondragover = e => handleDayDragOver(e, date);
-        dayBox.ondrop = e => handleDayDrop(e, date);
+
+        // ** Always allow dropping **
+        dayBox.ondragover = (e) => {
+          e.preventDefault();
+          handleDayDragOver(e, date);
+        };
+        dayBox.ondrop = (e) => {
+          e.preventDefault();
+          handleDayDrop(e, date);
+        };
 
         const title = document.createElement("h3");
         title.innerHTML = `${days[i % 7]}<br>${date}`;
@@ -280,31 +288,6 @@
 
           dayBox.appendChild(tile);
         });
-
-        // If dragging into empty area of day
-        dayBox.addEventListener('dragover', (e) => {
-          if (!draggingId) return;
-          if (dayTiles.length === 0) {
-            e.preventDefault();
-            dragTargetDay = date;
-            dragOverId = null;
-            dragOverPos = "day";
-            renderAll();
-          }
-        });
-
-        dayBox.ondrop = (e) => {
-          e.preventDefault();
-          if (!draggingId) return;
-          if (dragOverPos === "day" || dayTiles.length === 0) {
-            moveTileToDay(draggingId, date, 0);
-          }
-          draggingId = null;
-          dragOverId = null;
-          dragOverPos = null;
-          dragTargetDay = null;
-          renderAll();
-        };
 
         calendarEl.appendChild(dayBox);
       }
@@ -391,14 +374,14 @@
     // Drag & drop helpers for Trello-style stacking
     function handleDayDragOver(e, date) {
       if (!draggingId) return;
-      e.preventDefault();
+      // e.preventDefault();  <-- already called above!
       dragTargetDay = date;
       dragOverId = null;
       dragOverPos = "day";
     }
 
     function handleDayDrop(e, date) {
-      e.preventDefault();
+      // e.preventDefault();  <-- already called above!
       if (!draggingId) return;
       moveTileToDay(draggingId, date, null); // end of list
       draggingId = null;
@@ -508,9 +491,9 @@
       });
 
       holdingAreaEl.ondragover = (e) => {
+        e.preventDefault();
         if (!draggingId) return;
         if (holdingTiles.length === 0) {
-          e.preventDefault();
           dragOverId = null;
           dragOverPos = "day";
           dragTargetDay = null;
