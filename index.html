@@ -4,96 +4,63 @@
   <meta charset="UTF-8">
   <title>Two-Week Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Google Fonts for Lexend -->
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
-
     body {
-      font-family: sans-serif;
+      font-family: 'Lexend', Arial, sans-serif;
       margin: 0;
       padding: 1rem;
-      background: #f7f7f7;
+      background: #121212;
+      color: #e0e0e0;
     }
-
-    .controls {
-      margin-bottom: 1rem;
+    .controls { margin: 0.5rem 0; }
+    .controls button {
+      background: #333;
+      color: #e0e0e0;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Lexend', Arial, sans-serif;
+      font-weight: 600;
+      font-size: 1rem;
     }
-
     .calendar {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
       gap: 0.5rem;
     }
-
-    .week-row {
-      display: contents;
-    }
-
     .day {
-      border: 1px solid #ccc;
-      background: white;
+      border: 1px solid #333;
+      background: #1e1e1e;
       min-height: 150px;
       padding: 5px;
-      position: relative;
       display: flex;
       flex-direction: column;
     }
-
     .day h3 {
-      margin: 0 0 5px 0;
-      font-size: 0.9rem;
+      margin: 0 0 5px;
+      font-size: 20pt;
+      color: #e0e0e0;
+      font-family: 'Lexend', Arial, sans-serif;
+      font-weight: 600; /* Semi Bold */
+      letter-spacing: 0.5px;
     }
-
     .tile {
-      background: #ffdcdc;
+      min-height: 5rem;
       padding: 0.5rem;
       margin: 3px 0;
       border-radius: 6px;
-      cursor: move;
-      box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.1);
       position: relative;
       user-select: none;
-    }
-
-    .tile[contenteditable="true"] {
-      outline: none;
-    }
-
-    .tile button {
-      position: absolute;
-      top: 2px;
-      right: 2px;
-      background: transparent;
-      border: none;
-      color: #333;
-      cursor: pointer;
-      font-size: 14px;
-    }
-/* Make calendar tiles fill their calendar cell */
-.calendar .tile {
-  width: 100%;
-}
-
-/* Make holding‑area tiles the same width as one calendar column:
-   subtract out the 0.5rem gaps between 7 columns (6 gaps total = 3rem) */
-.holding-area .tile {
-  width: calc((100% - 3rem) / 7);
-}
-    .tile-controls {
       display: flex;
-      justify-content: flex-end;
-      gap: 5px;
-      margin-top: 2px;
-    }
-
-    .holding-area {
-      margin-top: 2rem;
-      padding: 1rem;
-      background: #eaeaea;
-      min-height: 120px;
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      border-radius: 8px;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      overflow: visible;
+      word-break: break-word;
     }
     .tile.color-0 { background: #ffdcdc; }
     .tile.color-1 { background: #fff4c2; }
@@ -101,41 +68,69 @@
     .tile.color-3 { background: #dceaff; }
     .tile.color-4 { background: #f0dcff; }
     .tile.color-5 { background: #ffebdc; }
-  
-    /* Big, black X in top‑right */
-.tile button.del-btn {
-  top: 4px !important;
-  right: 4px !important;
-  background: none;
-  border: none;
-  color: #000;
-  font-size: 18px;
-  font-weight: bold;
-  z-index: 10;
-}
 
-/* Move color icon to bottom‑right */
-.tile button.color-btn {
-  bottom: 4px !important;
-  right: 4px !important;
-  top: auto !important;
-  background: none;
-  border: none;
-  font-size: 16px;
-  z-index: 10;
-}
+    /* Make calendar tiles fill their cell */
+    .calendar .tile { width: 100%; }
+    .holding-area .tile { width: calc((100% - 3rem) / 7); }
 
+    .tile-content {
+      width: 100%;
+      text-align: center;
+      outline: none;
+      background: transparent;
+      border: none;
+      font-size: 16pt;
+      color: #000;
+      min-height: 2.5rem;
+      font-family: 'Lexend', Arial, sans-serif;
+      font-weight: 300; /* Light */
+    }
+    .tile .del-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: none;
+      border: none;
+      color: #000;
+      font-size: 22px;
+      font-weight: bold;
+      line-height: 1;
+      cursor: pointer;
+      z-index: 10;
+      padding: 0 2px;
+    }
+    .tile .color-btn {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: #222;
+      cursor: pointer;
+      z-index: 10;
+      padding: 0 2px;
+    }
+    .holding-area {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #2a2a2a;
+      min-height: 120px;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      border-radius: 8px;
+    }
   </style>
 </head>
 <body>
-  <div class="controls">
-    <button onclick="createTile()">➕ Create Tile</button>
-  </div>
-
   <div id="calendar" class="calendar"></div>
 
   <h3>Holding Area</h3>
-  <div id="holdingArea" class="holding-area" ondragover="allowDrop(event)" ondrop="drop(event, null)"></div>
+  <div class="controls">
+    <button onclick="createTile()">➕ Create Tile</button>
+  </div>
+  <div id="holdingArea" class="holding-area"></div>
 
   <script>
     const days = [
@@ -173,7 +168,7 @@
       const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
       const tileData = { id, text, color, location };
       state[id] = tileData;
-      renderTile(tileData);
+      renderAll();
       saveState();
     }
 
@@ -181,39 +176,38 @@
       const tile = document.createElement("div");
       tile.className = `tile color-${data.color}`;
       tile.draggable = true;
-      tile.contentEditable = true;
-      tile.innerText = data.text;
       tile.dataset.id = data.id;
 
-      tile.addEventListener("dragstart", (e) => {
-        e.dataTransfer.setData("text/plain", data.id);
-      });
-
-      tile.addEventListener("input", (e) => {
-        state[data.id].text = tile.innerText.trim();
+      // Editable content area
+      const content = document.createElement("div");
+      content.className = "tile-content";
+      content.contentEditable = true;
+      content.spellcheck = true;
+      content.innerText = data.text;
+      content.addEventListener("input", (e) => {
+        state[data.id].text = content.innerText.trim();
         saveState();
       });
 
-      tile.addEventListener("click", () => {
-        // Prevent dragging while editing
-        tile.draggable = false;
-      });
-
-      tile.addEventListener("blur", () => {
-        tile.draggable = true;
-      });
-
+      // Delete button (big black X)
       const del = document.createElement("button");
-      del.innerText = "🗑";
+      del.className = "del-btn";
+      del.type = "button";
+      del.innerText = "×";
+      del.title = "Delete";
       del.onclick = (e) => {
         e.stopPropagation();
         delete state[data.id];
-        tile.remove();
+        renderAll();
         saveState();
       };
 
+      // Color cycle button (bottom right)
       const colorBtn = document.createElement("button");
+      colorBtn.className = "color-btn";
+      colorBtn.type = "button";
       colorBtn.innerText = "🎨";
+      colorBtn.title = "Change Color";
       colorBtn.onclick = (e) => {
         e.stopPropagation();
         state[data.id].color = (state[data.id].color + 1) % pastelColors.length;
@@ -221,8 +215,14 @@
         saveState();
       };
 
+      tile.appendChild(content);
       tile.appendChild(del);
       tile.appendChild(colorBtn);
+
+      // Drag logic
+      tile.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", data.id);
+      });
 
       // Insert into correct place
       if (data.location === null) {
@@ -241,41 +241,42 @@
     function drop(e, date) {
       e.preventDefault();
       const id = e.dataTransfer.getData("text/plain");
-      state[id].location = date;
-      renderAll();
-      saveState();
+      if (state[id]) {
+        state[id].location = date;
+        renderAll();
+        saveState();
+      }
     }
 
     function renderAll() {
-  holdingAreaEl.innerHTML = '';    // Clear holding area
-  renderCalendar();                // Clear and redraw calendar
-  Object.values(state).forEach(renderTile);
-}
+      holdingAreaEl.innerHTML = '';
+      renderCalendar();
+      Object.values(state).forEach(renderTile);
+    }
 
     function saveState() {
       localStorage.setItem("calendarState", JSON.stringify(state));
     }
 
     renderAll();
-    
-    function setupDropTargets() {
-  document.querySelectorAll('.day, #holdingArea').forEach(el => {
-    el.ondragover = e => e.preventDefault();
-    el.ondrop = e => {
-      e.preventDefault();
-      const id = e.dataTransfer.getData('text/plain');
-      if (state[id]) {
-        const date = el.dataset.date || null;
-        state[id].location = date;
-        renderAll();
-        saveState();
-      }
-    };
-  });
-}
-// Call this once after defining functions:
-setupDropTargets();
 
+    // Update drop targets after rendering
+    function setupDropTargets() {
+      document.querySelectorAll('.day, #holdingArea').forEach(el => {
+        el.ondragover = e => e.preventDefault();
+        el.ondrop = e => {
+          e.preventDefault();
+          const id = e.dataTransfer.getData('text/plain');
+          if (state[id]) {
+            const date = el.dataset.date || null;
+            state[id].location = date;
+            renderAll();
+            saveState();
+          }
+        };
+      });
+    }
+    setupDropTargets();
   </script>
 </body>
 </html>
