@@ -229,38 +229,66 @@
     const holdingAreaEl = document.getElementById("holdingArea");
 
     function renderCalendar() {
-      calendarEl.innerHTML = "";
-      for (let i = 0; i < 14; i++) {
-        const date = dates[i];
-        const dayBox = document.createElement("div");
-        dayBox.className = "day";
-        dayBox.dataset.date = date;
+  calendarEl.innerHTML = "";
+  for (let i = 0; i < 14; i++) {
+    const date = dates[i];
+    const dayBox = document.createElement("div");
+    dayBox.className = "day";
+    dayBox.dataset.date = date;
+    dayBox.ondragover = e => handleDayDragOver(e, date);
+    dayBox.ondrop = e => handleDayDrop(e, date);
 
-        dayBox.ondragover = (e) => {
-          e.preventDefault();
-          handleDayDragOver(e, date);
-        };
-        dayBox.ondrop = (e) => {
-          e.preventDefault();
-          handleDayDrop(e, date);
-        };
+    const title = document.createElement("h3");
+    title.innerHTML = `${days[i % 7]}<br>${date}`;
+    dayBox.appendChild(title);
 
-        const title = document.createElement("h3");
-        title.innerHTML = `${days[i % 7]}<br>${date}`;
-        dayBox.appendChild(title);
+    // Get tiles for this day
+    const dayTiles = tiles
+      .map((t, idx) => ({ ...t, __idx: idx })) // track global idx
+      .filter(t => t.location === date);
 
-        const dayTiles = tiles
-          .map((t, idx) => ({ ...t, __idx: idx }))
-          .filter(t => t.location === date);
+    dayTiles.forEach((tileData, idx) => {
+      const tile = renderTile(tileData, dayTiles, idx, date);
 
-        dayTiles.forEach((tileData, idx) => {
-          const tile = renderTile(tileData, dayTiles, idx, date);
-          dayBox.appendChild(tile);
-        });
+      // ... (all your drag/drop events here, as before) ...
+      // (no change needed to tile events)
+      dayBox.appendChild(tile);
+    });
 
-        calendarEl.appendChild(dayBox);
+    // **NEW: Dynamically increase hit area!**
+    const baseTileHeight = 80; // px (5rem ≈ 80px)
+    const newMinHeight = Math.max(150, (dayTiles.length + 1.5) * baseTileHeight);
+    dayBox.style.minHeight = `${newMinHeight}px`;
+
+    // Drag-over behavior (no change)
+    dayBox.addEventListener('dragover', (e) => {
+      if (!draggingId) return;
+      if (dayTiles.length === 0) {
+        e.preventDefault();
+        dragTargetDay = date;
+        dragOverId = null;
+        dragOverPos = "day";
+        renderAll();
       }
-    }
+    });
+
+    dayBox.ondrop = (e) => {
+      e.preventDefault();
+      if (!draggingId) return;
+      if (dragOverPos === "day" || dayTiles.length === 0) {
+        moveTileToDay(draggingId, date, 0);
+      }
+      draggingId = null;
+      dragOverId = null;
+      dragOverPos = null;
+      dragTargetDay = null;
+      renderAll();
+    };
+
+    calendarEl.appendChild(dayBox);
+  }
+}
+
 
     function renderTile(data, dayTiles = null, idxInDay = null, curDay = null) {
       const tile = document.createElement("div");
