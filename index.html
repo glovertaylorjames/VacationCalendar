@@ -39,6 +39,7 @@
       padding: 5px;
       display: flex;
       flex-direction: column;
+      position: relative;
     }
     .day h3 {
       margin: 0 0 5px;
@@ -48,11 +49,12 @@
       font-weight: 600;
       letter-spacing: 0.5px;
       text-align: center;
+      pointer-events: none;
     }
     .tile {
       min-height: 5rem;
       padding: 0.5rem;
-      margin: 3px 0;
+      margin: 0;
       border-radius: 6px;
       position: relative;
       user-select: none;
@@ -62,6 +64,14 @@
       flex-direction: column;
       overflow: visible;
       word-break: break-word;
+      z-index: 1;
+      box-shadow: 0 2px 8px #0002;
+      transition: box-shadow 0.2s;
+    }
+    .tile.drag-over {
+      outline: 2px dashed #4099ff;
+      box-shadow: 0 2px 16px #4099ff88;
+      z-index: 10;
     }
     .tile.color-0 { background: #ffdcdc; }
     .tile.color-1 { background: #fff4c2; }
@@ -132,6 +142,20 @@
       color: #1266cc;
       word-break: break-all;
     }
+    .drop-zone {
+      height: 22px;
+      margin: 2px 0;
+      background: transparent;
+      transition: background 0.2s;
+    }
+    .drop-zone.drag-over {
+      background: #4099ff44;
+      border-radius: 8px;
+    }
+    /* Extra space between tiles for easier touch/mouse drop */
+    .tile + .drop-zone {
+      margin-bottom: 12px;
+    }
   </style>
   <!-- Firebase SDKs (modular) -->
   <script type="module">
@@ -152,7 +176,6 @@
     // Initialize Firebase and Firestore
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    // Firestore doc location for your shared calendar state
     const docRef = doc(db, "calendarState", "shared");
 
     // Ensure document exists on first load
@@ -163,7 +186,6 @@
       }
     })();
 
-    // Calendar logic
     const days = [
       'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
     ];
@@ -180,28 +202,14 @@
     calendarEl.id = "calendar";
     calendarEl.className = "calendar";
     document.body.insertBefore(calendarEl, document.body.children[0]);
-
     const holdingAreaEl = document.getElementById("holdingArea");
 
     // --- Helper: linkify function ---
     function linkify(html) {
-      // Replace URLs with <a>, but keep <br> and other tags intact.
-      // Only match URLs not inside existing tags.
       return html.replace(
         /(https?:\/\/[^\s<]+)/g,
         url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
       );
-    }
-
-    // --- Helper: normalize line breaks ---
-    function normalizeLineBreaks(html) {
-      // Replace <div> with nothing and </div> with <br>
-      // Prevent double <br> as well
-      return html
-        .replace(/<div>/g, '')
-        .replace(/<\/div>/g, '<br>')
-        .replace(/<br><br>/g, '<br>')
-        .replace(/<br>$/, ''); // Remove trailing <br>
     }
 
     // --- Calendar UI functions ---
@@ -212,9 +220,8 @@
         dayBox.className = "day";
         dayBox.dataset.date = dates[i];
         dayBox.ondragover = allowDrop;
-        dayBox.ondrop = (e) => drop(e, dates[i]);
+        dayBox.ondrop = (e) => handleDropZoneDrop(e, dates[i], 0);
 
-        // Day and date on two lines
         const title = document.createElement("h3");
         title.innerHTML = `${days[i % 7]}<br>${dates[i]}`;
         dayBox.appendChild(title);
@@ -225,12 +232,41 @@
 
     function createTile(text = "New Activity", color = 0, location = null) {
       const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const tileData = { id, text, color, location };
+      const tileData = { id, text, color, location, order: Date.now() };
       state[id] = tileData;
-      syncToFirestore(); // Always save to Firestore immediately
+      syncToFirestore();
     }
 
-    function renderTile(data) {
+    // Helper to get tiles in location sorted by .order
+    function getTilesInLocation(loc) {
+      return Object.values(state)
+        .filter(t => t.location === loc)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+    }
+
+    function renderTile(data, parent, idx, allTilesHere) {
+      // Drop-zone above this tile
+      const dropAbove = document.createElement('div');
+      dropAbove.className = 'drop-zone';
+      dropAbove.addEventListener('dragover', e => { e.preventDefault(); dropAbove.classList.add('drag-over'); });
+      dropAbove.addEventListener('dragleave', e => dropAbove.classList.remove('drag-over'));
+      dropAbove.addEventListener('drop', e => {
+        e.preventDefault();
+        dropAbove.classList.remove('drag-over');
+        const draggedId = e.dataTransfer.getData('text/plain');
+        if (state[draggedId] && draggedId !== data.id) {
+          // Insert at this position
+          allTilesHere.splice(idx, 0, state[draggedId]);
+          // Remove dups
+          let seen = new Set();
+          let filtered = allTilesHere.filter(t => seen.has(t.id) ? false : seen.add(t.id));
+          filtered.forEach((t, i) => t.order = Date.now() + i);
+          state[draggedId].location = data.location;
+          syncToFirestore();
+        }
+      });
+      parent.appendChild(dropAbove);
+
       const tile = document.createElement("div");
       tile.className = `tile color-${data.color}`;
       tile.draggable = true;
@@ -246,34 +282,50 @@
       function renderContent() {
         if (isEditing) {
           content.contentEditable = true;
-          // Set innerHTML for edit mode so <br> is kept for line breaks
-          content.innerHTML = (data.text || "");
+          content.innerText = data.text.replace(/<br\s*\/?>/gi, "\n");
           content.focus();
         } else {
           content.contentEditable = false;
-          content.innerHTML = linkify(data.text || "");
+          let html = (data.text || "").replace(/\n/g, "<br>");
+          content.innerHTML = linkify(html);
         }
       }
       renderContent();
 
-      // Double-click to edit
+      // Double-click or double-tap to edit
+      let lastTap = 0;
       content.addEventListener("dblclick", () => {
         isEditing = true;
         renderContent();
+      });
+      content.addEventListener("touchend", (e) => {
+        const now = Date.now();
+        if (now - lastTap < 400) {
+          isEditing = true;
+          renderContent();
+        }
+        lastTap = now;
       });
 
       // Finish editing on blur only
       content.addEventListener("blur", () => {
         if (isEditing) {
           isEditing = false;
-          // Option 1: Normalize line breaks and strip <div> for <br>
-          state[data.id].text = normalizeLineBreaks(content.innerHTML.trim());
+          state[data.id].text = content.innerText.replace(/\n/g, "\n");
           syncToFirestore();
           renderContent();
         }
       });
 
-      // Delete button (big black X)
+      content.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          content.blur();
+        }
+        // Shift+Enter = newline (default behavior)
+      });
+
+      // Delete button
       const del = document.createElement("button");
       del.className = "del-btn";
       del.type = "button";
@@ -285,7 +337,7 @@
         syncToFirestore();
       };
 
-      // Color cycle button (bottom right)
+      // Color cycle button
       const colorBtn = document.createElement("button");
       colorBtn.className = "color-btn";
       colorBtn.type = "button";
@@ -297,32 +349,76 @@
         syncToFirestore();
       };
 
+      // Drag logic
+      tile.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", data.id);
+        setTimeout(() => tile.classList.add("drag-over"), 0);
+      });
+      tile.addEventListener("dragend", (e) => {
+        tile.classList.remove("drag-over");
+      });
+
+      // Highlight tile on drag over
+      tile.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        tile.classList.add("drag-over");
+      });
+      tile.addEventListener("dragleave", (e) => {
+        tile.classList.remove("drag-over");
+      });
+
+      // Drop directly on tile (insert here)
+      tile.addEventListener("drop", e => {
+        e.preventDefault();
+        tile.classList.remove("drag-over");
+        const draggedId = e.dataTransfer.getData("text/plain");
+        if (state[draggedId] && draggedId !== data.id) {
+          // Insert above (by default) this tile
+          allTilesHere.splice(idx, 0, state[draggedId]);
+          let seen = new Set();
+          let filtered = allTilesHere.filter(t => seen.has(t.id) ? false : seen.add(t.id));
+          filtered.forEach((t, i) => t.order = Date.now() + i);
+          state[draggedId].location = data.location;
+          syncToFirestore();
+        }
+      });
+
       tile.appendChild(content);
       tile.appendChild(del);
       tile.appendChild(colorBtn);
 
-      // Drag logic
-      tile.addEventListener("dragstart", (e) => {
-        e.dataTransfer.setData("text/plain", data.id);
-      });
-
-      // Insert into correct place
-      if (data.location === null) {
-        holdingAreaEl.appendChild(tile);
-      } else {
-        const dayBox = [...calendarEl.children].find(d => d.dataset.date === data.location);
-        if (dayBox) dayBox.appendChild(tile);
-        else holdingAreaEl.appendChild(tile);
-      }
+      parent.appendChild(tile);
     }
 
-    function allowDrop(e) { e.preventDefault(); }
+    // Drop zone at the very end (bottom) of a day/holding area
+    function renderDropZoneAtEnd(parent, location, allTilesHere) {
+      const dropEnd = document.createElement('div');
+      dropEnd.className = 'drop-zone';
+      dropEnd.addEventListener('dragover', e => { e.preventDefault(); dropEnd.classList.add('drag-over'); });
+      dropEnd.addEventListener('dragleave', e => dropEnd.classList.remove('drag-over'));
+      dropEnd.addEventListener('drop', e => {
+        e.preventDefault();
+        dropEnd.classList.remove('drag-over');
+        const draggedId = e.dataTransfer.getData('text/plain');
+        if (state[draggedId]) {
+          allTilesHere.push(state[draggedId]);
+          let seen = new Set();
+          let filtered = allTilesHere.filter(t => seen.has(t.id) ? false : seen.add(t.id));
+          filtered.forEach((t, i) => t.order = Date.now() + i);
+          state[draggedId].location = location;
+          syncToFirestore();
+        }
+      });
+      parent.appendChild(dropEnd);
+    }
 
-    function drop(e, date) {
+    // Drop handler for empty days/holding area
+    function handleDropZoneDrop(e, location, idx) {
       e.preventDefault();
-      const id = e.dataTransfer.getData("text/plain");
-      if (state[id]) {
-        state[id].location = date;
+      const draggedId = e.dataTransfer.getData('text/plain');
+      if (state[draggedId]) {
+        state[draggedId].location = location;
+        state[draggedId].order = Date.now();
         syncToFirestore();
       }
     }
@@ -330,8 +426,20 @@
     function renderAll() {
       holdingAreaEl.innerHTML = '';
       renderCalendar();
-      Object.values(state).forEach(renderTile);
-      setupDropTargets();
+
+      // Holding area tiles (null location)
+      let tilesInHolding = getTilesInLocation(null);
+      tilesInHolding.forEach((t, idx) => renderTile(t, holdingAreaEl, idx, tilesInHolding));
+      renderDropZoneAtEnd(holdingAreaEl, null, tilesInHolding);
+
+      // For each day
+      dates.forEach(date => {
+        const dayBox = [...calendarEl.children].find(d => d.dataset.date === date);
+        if (!dayBox) return;
+        let tilesInDay = getTilesInLocation(date);
+        tilesInDay.forEach((t, idx) => renderTile(t, dayBox, idx, tilesInDay));
+        renderDropZoneAtEnd(dayBox, date, tilesInDay);
+      });
     }
 
     // --- Firestore Sync ---
@@ -350,24 +458,15 @@
     // --- UI BUTTON: Create tile ---
     window.createTile = createTile;
 
-    // Initial UI render (only to draw containers, tiles will follow from Firestore)
+    // Initial render
     renderAll();
 
-    // Setup drag drop after DOM is ready
-    function setupDropTargets() {
-      document.querySelectorAll('.day, #holdingArea').forEach(el => {
-        el.ondragover = e => e.preventDefault();
-        el.ondrop = e => {
-          e.preventDefault();
-          const id = e.dataTransfer.getData('text/plain');
-          if (state[id]) {
-            const date = el.dataset.date || null;
-            state[id].location = date;
-            syncToFirestore();
-          }
-        };
-      });
-    }
+    // Utility: close mobile keyboard by tapping elsewhere
+    document.body.addEventListener("touchstart", (e) => {
+      if (!e.target.closest('.tile-content')) {
+        document.activeElement.blur();
+      }
+    });
   </script>
 </head>
 <body>
