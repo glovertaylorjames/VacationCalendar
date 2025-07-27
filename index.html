@@ -6,8 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Google Fonts for Lexend -->
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;600&display=swap" rel="stylesheet">
-  <!-- Sortable.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -33,7 +31,6 @@
       display: grid;
       grid-template-columns: repeat(7, 1fr);
       gap: 0.5rem;
-      margin-bottom: 2rem;
     }
     .day {
       border: 1px solid #333;
@@ -42,7 +39,6 @@
       padding: 5px;
       display: flex;
       flex-direction: column;
-      border-radius: 8px;
     }
     .day h3 {
       margin: 0 0 5px;
@@ -53,19 +49,10 @@
       letter-spacing: 0.5px;
       text-align: center;
     }
-    .tile-list {
-      flex: 1;
-      min-height: 1.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding-bottom: 5px;
-      padding-top: 5px;
-    }
     .tile {
       min-height: 5rem;
       padding: 0.5rem;
-      margin: 0;
+      margin: 3px 0;
       border-radius: 6px;
       position: relative;
       user-select: none;
@@ -73,14 +60,12 @@
       align-items: center;
       justify-content: center;
       flex-direction: column;
+      overflow: visible;
       word-break: break-word;
-      box-shadow: 0 2px 8px #0002;
-      transition: box-shadow 0.15s, transform 0.15s;
-      font-size: 12pt;
+      font-size: 15pt;
+      color: #000;
       font-family: 'Lexend', Arial, sans-serif;
       font-weight: 300;
-      color: #000;
-      cursor: grab;
     }
     .tile.color-0 { background: #ffdcdc; }
     .tile.color-1 { background: #fff4c2; }
@@ -88,7 +73,29 @@
     .tile.color-3 { background: #dceaff; }
     .tile.color-4 { background: #f0dcff; }
     .tile.color-5 { background: #ffebdc; }
-    .tile:active { cursor: grabbing; }
+
+    .calendar .tile { width: 100%; }
+    .holding-area .tile { width: calc((100% - 3rem) / 7); }
+
+    .tile-content {
+      width: 100%;
+      text-align: center;
+      outline: none;
+      background: transparent;
+      border: none;
+      font-size: 15pt;
+      color: #000;
+      min-height: 2.5rem;
+      font-family: 'Lexend', Arial, sans-serif;
+      font-weight: 300;
+      word-break: break-word;
+      cursor: pointer;
+    }
+    .tile-content[contenteditable="true"] {
+      background: #f9f9f9;
+      color: #222;
+      cursor: text;
+    }
     .tile .del-btn {
       position: absolute;
       top: 6px;
@@ -116,33 +123,26 @@
       padding: 0 2px;
     }
     .holding-area {
-      margin-top: 0.5rem;
+      margin-top: 2rem;
       padding: 1rem;
       background: #2a2a2a;
       min-height: 120px;
       display: flex;
-      flex-direction: column;
       gap: 0.5rem;
       flex-wrap: wrap;
       border-radius: 8px;
     }
-    .holding-list {
-      display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      min-height: 5rem;
-      width: 100%;
+    a {
+      color: #1266cc;
+      word-break: break-all;
     }
-    a { color: #1266cc; word-break: break-all; }
-    .tile-editing { outline: 2px solid #007bff; background: #fffbe6 !important; }
-    .sortable-chosen { box-shadow: 0 8px 16px #0004 !important; }
-    .sortable-ghost { opacity: 0.4 !important; }
   </style>
+  <!-- Firebase SDKs (modular) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
     import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
-    // Firebase config
+    // Your Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAEpv0ZHT3fwo9aIsJKyzvk9EPtG70HNkk",
       authDomain: "calendartiles.firebaseapp.com",
@@ -153,27 +153,21 @@
       measurementId: "G-S39474K89Y"
     };
 
-    // Use object for days (no nested arrays)
-    function freshState() {
-      const days = {};
-      for (let i = 0; i < 14; i++) days[i] = [];
-      return { days, holding: [] };
-    }
-
     // Initialize Firebase and Firestore
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const docRef = doc(db, "calendarState", "shared");
 
-    // Ensure document exists on first load
+    // Ensure Firestore document exists on first load
     (async () => {
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists()) {
-        await setDoc(docRef, freshState());
+        await setDoc(docRef, { tiles: [] });
       }
     })();
 
-    const daysOfWeek = [
+    // Data
+    const days = [
       'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
     ];
     const dates = [
@@ -182,209 +176,177 @@
     ];
     const pastelColors = [0, 1, 2, 3, 4, 5];
 
-    let state = freshState();
+    let tiles = [];
 
-    function linkify(html) {
-      return html.replace(
+    // Helper: linkify URLs
+    function linkify(text) {
+      if (!text) return "";
+      return text.replace(
         /(https?:\/\/[^\s<]+)/g,
         url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
-      );
+      ).replace(/\n/g, '<br>');
     }
 
+    // UI DOM
+    const calendarEl = document.createElement("div");
+    calendarEl.id = "calendar";
+    calendarEl.className = "calendar";
+    document.body.insertBefore(calendarEl, document.body.children[0]);
+    const holdingAreaEl = document.getElementById("holdingArea");
+
+    // Calendar rendering
     function renderCalendar() {
-      const calendarEl = document.getElementById("calendar");
       calendarEl.innerHTML = "";
       for (let i = 0; i < 14; i++) {
         const dayBox = document.createElement("div");
         dayBox.className = "day";
         dayBox.dataset.date = dates[i];
+        dayBox.ondragover = e => e.preventDefault();
+        dayBox.ondrop = e => dropTile(e, dates[i]);
 
+        // Day and date on two lines
         const title = document.createElement("h3");
-        title.innerHTML = `${daysOfWeek[i % 7]}<br>${dates[i]}`;
+        title.innerHTML = `${days[i % 7]}<br>${dates[i]}`;
         dayBox.appendChild(title);
 
-        const list = document.createElement("div");
-        list.className = "tile-list";
-        list.dataset.dayIndex = i;
-        dayBox.appendChild(list);
-
+        // Add tiles for this day
+        tiles.filter(t => t.location === dates[i]).forEach(renderTile(dayBox));
         calendarEl.appendChild(dayBox);
       }
     }
 
-    function renderAll() {
-      renderCalendar();
+    // Render a single tile (returns a function for Array.forEach)
+    function renderTile(parent) {
+      return function (data) {
+        const tile = document.createElement("div");
+        tile.className = `tile color-${data.color}`;
+        tile.draggable = true;
+        tile.dataset.id = data.id;
 
-      // --- HOLDING AREA ---
-      const holdingList = document.getElementById("holdingList");
-      if (holdingList.sortable) { holdingList.sortable.destroy(); holdingList.sortable = null; }
-      holdingList.innerHTML = "";
-      for (const tile of state.holding) {
-        holdingList.appendChild(createTileElement(tile, null, "holding"));
-      }
-      holdingList.sortable = Sortable.create(holdingList, {
-        group: "tiles",
-        animation: 150,
-        ghostClass: "sortable-ghost",
-        chosenClass: "sortable-chosen",
-        onEnd: function (evt) {
-          let moved = removeTileFromAll(evt.item.dataset.id);
-          state.holding.splice(evt.newIndex, 0, moved);
-          syncToFirestore();
-        }
-      });
+        let isEditing = false;
 
-      // --- EACH CALENDAR DAY ---
-      for (let i = 0; i < 14; i++) {
-        const dayList = document.querySelector(`.tile-list[data-day-index='${i}']`);
-        if (dayList.sortable) { dayList.sortable.destroy(); dayList.sortable = null; }
-        dayList.innerHTML = "";
-        for (const tile of state.days[i]) {
-          dayList.appendChild(createTileElement(tile, i, "calendar"));
-        }
-        dayList.sortable = Sortable.create(dayList, {
-          group: "tiles",
-          animation: 150,
-          ghostClass: "sortable-ghost",
-          chosenClass: "sortable-chosen",
-          onEnd: function (evt) {
-            let moved = removeTileFromAll(evt.item.dataset.id);
-            if (!Array.isArray(state.days[i])) state.days[i] = [];
-            state.days[i].splice(evt.newIndex, 0, moved);
-            syncToFirestore();
+        // Editable content area
+        const content = document.createElement("div");
+        content.className = "tile-content";
+        content.spellcheck = true;
+
+        function renderContent() {
+          if (isEditing) {
+            content.contentEditable = true;
+            content.innerText = data.text;
+            content.focus();
+          } else {
+            content.contentEditable = false;
+            content.innerHTML = linkify(data.text || "");
           }
-        });
-      }
-    }
-
-    function createTileElement(data, dayIndex, zoneType) {
-      const tile = document.createElement("div");
-      tile.className = `tile color-${data.color || 0}`;
-      tile.dataset.id = data.id;
-      tile.style.touchAction = "manipulation";
-
-      let isEditing = false;
-
-      const content = document.createElement("div");
-      content.className = "tile-content";
-      content.spellcheck = true;
-
-      function renderContent() {
-        if (isEditing) {
-          content.contentEditable = true;
-          content.innerText = data.text;
-          content.classList.add('tile-editing');
-          setTimeout(() => { content.focus(); }, 20);
-        } else {
-          content.contentEditable = false;
-          content.innerHTML = linkify(data.text || "");
-          content.classList.remove('tile-editing');
         }
-      }
-      renderContent();
-
-      content.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-        isEditing = true;
         renderContent();
-      });
-      content.addEventListener("touchstart", (e) => {
-        if (!isEditing && e.touches.length === 1) {
-          let timeout = setTimeout(() => {
-            isEditing = true;
-            renderContent();
-          }, 400);
-          content.addEventListener("touchend", function cancel() { clearTimeout(timeout); content.removeEventListener("touchend", cancel); });
-        }
-      });
-      content.addEventListener("blur", (e) => {
-        if (isEditing) {
-          isEditing = false;
-          data.text = content.innerText.trim();
-          syncToFirestore();
+
+        // Double-click to edit
+        content.addEventListener("dblclick", () => {
+          isEditing = true;
           renderContent();
-        }
-      });
-
-      // Delete button
-      const del = document.createElement("button");
-      del.className = "del-btn";
-      del.type = "button";
-      del.innerText = "×";
-      del.title = "Delete";
-      del.onclick = (e) => {
-        e.stopPropagation();
-        if (zoneType === "holding") {
-          state.holding = (Array.isArray(state.holding) ? state.holding : []).filter(t => t.id !== data.id);
-        } else if (typeof dayIndex === "number") {
-          if (Array.isArray(state.days[dayIndex])) {
-            state.days[dayIndex] = state.days[dayIndex].filter(t => t.id !== data.id);
-          }
-        }
-        syncToFirestore();
-      };
-
-      // Color cycle button
-      const colorBtn = document.createElement("button");
-      colorBtn.className = "color-btn";
-      colorBtn.type = "button";
-      colorBtn.innerText = "🎨";
-      colorBtn.title = "Change Color";
-      colorBtn.onclick = (e) => {
-        e.stopPropagation();
-        data.color = ((data.color || 0) + 1) % pastelColors.length;
-        syncToFirestore();
-      };
-
-      tile.appendChild(content);
-      tile.appendChild(del);
-      tile.appendChild(colorBtn);
-
-      return tile;
-    }
-
-    function removeTileFromAll(id) {
-      let moved;
-      state.holding = (Array.isArray(state.holding) ? state.holding : []).filter(t => {
-        if (t.id === id) moved = t;
-        return t.id !== id;
-      });
-      for (let i = 0; i < 14; i++) {
-        if (!Array.isArray(state.days[i])) state.days[i] = [];
-        state.days[i] = state.days[i].filter(t => {
-          if (t.id === id) moved = t;
-          return t.id !== id;
         });
+
+        // Finish editing on blur only
+        content.addEventListener("blur", () => {
+          if (isEditing) {
+            isEditing = false;
+            data.text = content.innerText.trim();
+            syncToFirestore();
+            renderContent();
+          }
+        });
+
+        // Delete button (big black X)
+        const del = document.createElement("button");
+        del.className = "del-btn";
+        del.type = "button";
+        del.innerText = "×";
+        del.title = "Delete";
+        del.onclick = (e) => {
+          e.stopPropagation();
+          tiles = tiles.filter(t => t.id !== data.id);
+          syncToFirestore();
+        };
+
+        // Color cycle button (bottom right)
+        const colorBtn = document.createElement("button");
+        colorBtn.className = "color-btn";
+        colorBtn.type = "button";
+        colorBtn.innerText = "🎨";
+        colorBtn.title = "Change Color";
+        colorBtn.onclick = (e) => {
+          e.stopPropagation();
+          data.color = (data.color + 1) % pastelColors.length;
+          syncToFirestore();
+        };
+
+        tile.appendChild(content);
+        tile.appendChild(del);
+        tile.appendChild(colorBtn);
+
+        // Drag logic
+        tile.addEventListener("dragstart", (e) => {
+          e.dataTransfer.setData("text/plain", data.id);
+        });
+
+        parent.appendChild(tile);
+      };
+    }
+
+    // Render holding area
+    function renderHolding() {
+      holdingAreaEl.innerHTML = '';
+      tiles.filter(t => !t.location).forEach(renderTile(holdingAreaEl));
+    }
+
+    // Drag & Drop
+    function dropTile(e, date) {
+      e.preventDefault();
+      const id = e.dataTransfer.getData("text/plain");
+      const tile = tiles.find(t => t.id === id);
+      if (tile) {
+        tile.location = date;
+        syncToFirestore();
       }
-      return moved;
     }
+    holdingAreaEl.ondragover = e => e.preventDefault();
+    holdingAreaEl.ondrop = e => {
+      const id = e.dataTransfer.getData("text/plain");
+      const tile = tiles.find(t => t.id === id);
+      if (tile) {
+        tile.location = null;
+        syncToFirestore();
+      }
+    };
 
+    // Sync with Firestore
     async function syncToFirestore() {
-      await setDoc(docRef, { days: state.days, holding: state.holding });
+      await setDoc(docRef, { tiles });
     }
 
+    // Listen to Firestore changes
     onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        // Defensive: all lists must be arrays
-        const newDays = {};
-        for (let i = 0; i < 14; i++) {
-          newDays[i] = Array.isArray(data.days?.[i]) ? data.days[i] : [];
-        }
-        state.days = newDays;
-        state.holding = Array.isArray(data.holding) ? data.holding : [];
+      if (docSnap.exists() && Array.isArray(docSnap.data().tiles)) {
+        tiles = docSnap.data().tiles;
         renderAll();
       }
     });
 
-    window.createTile = function () {
+    function renderAll() {
+      renderCalendar();
+      renderHolding();
+    }
+
+    // Create tile
+    window.createTile = function createTile() {
       const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const tileData = { id, text: "New Activity", color: 0 };
-      // Only modify local state, don't mutate DOM
-      state.holding.push(tileData);
+      tiles.push({ id, text: "New Activity", color: 0, location: null });
       syncToFirestore();
     };
 
+    // Initial render
     window.addEventListener("DOMContentLoaded", () => {
       renderAll();
     });
@@ -397,8 +359,6 @@
   <div class="controls">
     <button onclick="createTile()">➕ Create Tile</button>
   </div>
-  <div id="holdingArea" class="holding-area">
-    <div id="holdingList" class="holding-list"></div>
-  </div>
+  <div id="holdingArea" class="holding-area"></div>
 </body>
 </html>
