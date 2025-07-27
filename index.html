@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Google Fonts for Lexend -->
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;600&display=swap" rel="stylesheet">
+  <!-- Sortable.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -31,6 +33,7 @@
       display: grid;
       grid-template-columns: repeat(7, 1fr);
       gap: 0.5rem;
+      margin-bottom: 2rem;
     }
     .day {
       border: 1px solid #333;
@@ -39,7 +42,7 @@
       padding: 5px;
       display: flex;
       flex-direction: column;
-      position: relative;
+      border-radius: 8px;
     }
     .day h3 {
       margin: 0 0 5px;
@@ -49,7 +52,15 @@
       font-weight: 600;
       letter-spacing: 0.5px;
       text-align: center;
-      pointer-events: none;
+    }
+    .tile-list {
+      flex: 1;
+      min-height: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-bottom: 5px;
+      padding-top: 5px;
     }
     .tile {
       min-height: 5rem;
@@ -62,16 +73,14 @@
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      overflow: visible;
       word-break: break-word;
-      z-index: 1;
       box-shadow: 0 2px 8px #0002;
-      transition: box-shadow 0.2s;
-    }
-    .tile.drag-over {
-      outline: 2px dashed #4099ff;
-      box-shadow: 0 2px 16px #4099ff88;
-      z-index: 10;
+      transition: box-shadow 0.15s, transform 0.15s;
+      font-size: 12pt;
+      font-family: 'Lexend', Arial, sans-serif;
+      font-weight: 300;
+      color: #000;
+      cursor: grab;
     }
     .tile.color-0 { background: #ffdcdc; }
     .tile.color-1 { background: #fff4c2; }
@@ -79,29 +88,7 @@
     .tile.color-3 { background: #dceaff; }
     .tile.color-4 { background: #f0dcff; }
     .tile.color-5 { background: #ffebdc; }
-
-    .calendar .tile { width: 100%; }
-    .holding-area .tile { width: calc((100% - 3rem) / 7); }
-
-    .tile-content {
-      width: 100%;
-      text-align: center;
-      outline: none;
-      background: transparent;
-      border: none;
-      font-size: 16pt;
-      color: #000;
-      min-height: 2.5rem;
-      font-family: 'Lexend', Arial, sans-serif;
-      font-weight: 300;
-      word-break: break-word;
-      cursor: pointer;
-    }
-    .tile-content[contenteditable="true"] {
-      background: #f9f9f9;
-      color: #222;
-      cursor: text;
-    }
+    .tile:active { cursor: grabbing; }
     .tile .del-btn {
       position: absolute;
       top: 6px;
@@ -129,40 +116,33 @@
       padding: 0 2px;
     }
     .holding-area {
-      margin-top: 2rem;
+      margin-top: 0.5rem;
       padding: 1rem;
       background: #2a2a2a;
       min-height: 120px;
       display: flex;
+      flex-direction: column;
       gap: 0.5rem;
       flex-wrap: wrap;
       border-radius: 8px;
     }
-    a {
-      color: #1266cc;
-      word-break: break-all;
+    .holding-list {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      min-height: 5rem;
+      width: 100%;
     }
-    .drop-zone {
-      height: 22px;
-      margin: 2px 0;
-      background: transparent;
-      transition: background 0.2s;
-    }
-    .drop-zone.drag-over {
-      background: #4099ff44;
-      border-radius: 8px;
-    }
-    /* Extra space between tiles for easier touch/mouse drop */
-    .tile + .drop-zone {
-      margin-bottom: 12px;
-    }
+    a { color: #1266cc; word-break: break-all; }
+    .tile-editing { outline: 2px solid #007bff; background: #fffbe6 !important; }
+    .sortable-chosen { box-shadow: 0 8px 16px #0004 !important; }
+    .sortable-ghost { opacity: 0.4 !important; }
   </style>
-  <!-- Firebase SDKs (modular) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
     import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
-    // Your Firebase config
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAEpv0ZHT3fwo9aIsJKyzvk9EPtG70HNkk",
       authDomain: "calendartiles.firebaseapp.com",
@@ -173,6 +153,13 @@
       measurementId: "G-S39474K89Y"
     };
 
+    // Use object for days (no nested arrays)
+    function freshState() {
+      const days = {};
+      for (let i = 0; i < 14; i++) days[i] = [];
+      return { days, holding: [] };
+    }
+
     // Initialize Firebase and Firestore
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -182,11 +169,11 @@
     (async () => {
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists()) {
-        await setDoc(docRef, { state: {} });
+        await setDoc(docRef, freshState());
       }
     })();
 
-    const days = [
+    const daysOfWeek = [
       'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
     ];
     const dates = [
@@ -195,16 +182,8 @@
     ];
     const pastelColors = [0, 1, 2, 3, 4, 5];
 
-    let state = {};
+    let state = freshState();
 
-    // --- DOM references
-    const calendarEl = document.createElement("div");
-    calendarEl.id = "calendar";
-    calendarEl.className = "calendar";
-    document.body.insertBefore(calendarEl, document.body.children[0]);
-    const holdingAreaEl = document.getElementById("holdingArea");
-
-    // --- Helper: linkify function ---
     function linkify(html) {
       return html.replace(
         /(https?:\/\/[^\s<]+)/g,
@@ -212,70 +191,80 @@
       );
     }
 
-    // --- Calendar UI functions ---
     function renderCalendar() {
-  calendarEl.innerHTML = "";
-  for (let i = 0; i < 14; i++) {
-    const dayBox = document.createElement("div");
-    dayBox.className = "day";
-    dayBox.dataset.date = dates[i];
-    // Remove the allowDrop assignment!
-    dayBox.ondrop = (e) => handleDropZoneDrop(e, dates[i], 0);
+      const calendarEl = document.getElementById("calendar");
+      calendarEl.innerHTML = "";
+      for (let i = 0; i < 14; i++) {
+        const dayBox = document.createElement("div");
+        dayBox.className = "day";
+        dayBox.dataset.date = dates[i];
 
-    const title = document.createElement("h3");
-    title.innerHTML = `${days[i % 7]}<br>${dates[i]}`;
-    dayBox.appendChild(title);
+        const title = document.createElement("h3");
+        title.innerHTML = `${daysOfWeek[i % 7]}<br>${dates[i]}`;
+        dayBox.appendChild(title);
 
-    calendarEl.appendChild(dayBox);
-  }
-}
+        const list = document.createElement("div");
+        list.className = "tile-list";
+        list.dataset.dayIndex = i;
+        dayBox.appendChild(list);
 
-
-    function createTile(text = "New Activity", color = 0, location = null) {
-      const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      const tileData = { id, text, color, location, order: Date.now() };
-      state[id] = tileData;
-      syncToFirestore();
+        calendarEl.appendChild(dayBox);
+      }
     }
 
-    // Helper to get tiles in location sorted by .order
-    function getTilesInLocation(loc) {
-      return Object.values(state)
-        .filter(t => t.location === loc)
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
-    }
+    function renderAll() {
+      renderCalendar();
 
-    function renderTile(data, parent, idx, allTilesHere) {
-      // Drop-zone above this tile
-      const dropAbove = document.createElement('div');
-      dropAbove.className = 'drop-zone';
-      dropAbove.addEventListener('dragover', e => { e.preventDefault(); dropAbove.classList.add('drag-over'); });
-      dropAbove.addEventListener('dragleave', e => dropAbove.classList.remove('drag-over'));
-      dropAbove.addEventListener('drop', e => {
-        e.preventDefault();
-        dropAbove.classList.remove('drag-over');
-        const draggedId = e.dataTransfer.getData('text/plain');
-        if (state[draggedId] && draggedId !== data.id) {
-          // Insert at this position
-          allTilesHere.splice(idx, 0, state[draggedId]);
-          // Remove dups
-          let seen = new Set();
-          let filtered = allTilesHere.filter(t => seen.has(t.id) ? false : seen.add(t.id));
-          filtered.forEach((t, i) => t.order = Date.now() + i);
-          state[draggedId].location = data.location;
+      // --- HOLDING AREA ---
+      const holdingList = document.getElementById("holdingList");
+      if (holdingList.sortable) { holdingList.sortable.destroy(); holdingList.sortable = null; }
+      holdingList.innerHTML = "";
+      for (const tile of state.holding) {
+        holdingList.appendChild(createTileElement(tile, null, "holding"));
+      }
+      holdingList.sortable = Sortable.create(holdingList, {
+        group: "tiles",
+        animation: 150,
+        ghostClass: "sortable-ghost",
+        chosenClass: "sortable-chosen",
+        onEnd: function (evt) {
+          let moved = removeTileFromAll(evt.item.dataset.id);
+          state.holding.splice(evt.newIndex, 0, moved);
           syncToFirestore();
         }
       });
-      parent.appendChild(dropAbove);
 
+      // --- EACH CALENDAR DAY ---
+      for (let i = 0; i < 14; i++) {
+        const dayList = document.querySelector(`.tile-list[data-day-index='${i}']`);
+        if (dayList.sortable) { dayList.sortable.destroy(); dayList.sortable = null; }
+        dayList.innerHTML = "";
+        for (const tile of state.days[i]) {
+          dayList.appendChild(createTileElement(tile, i, "calendar"));
+        }
+        dayList.sortable = Sortable.create(dayList, {
+          group: "tiles",
+          animation: 150,
+          ghostClass: "sortable-ghost",
+          chosenClass: "sortable-chosen",
+          onEnd: function (evt) {
+            let moved = removeTileFromAll(evt.item.dataset.id);
+            if (!Array.isArray(state.days[i])) state.days[i] = [];
+            state.days[i].splice(evt.newIndex, 0, moved);
+            syncToFirestore();
+          }
+        });
+      }
+    }
+
+    function createTileElement(data, dayIndex, zoneType) {
       const tile = document.createElement("div");
-      tile.className = `tile color-${data.color}`;
-      tile.draggable = true;
+      tile.className = `tile color-${data.color || 0}`;
       tile.dataset.id = data.id;
+      tile.style.touchAction = "manipulation";
 
       let isEditing = false;
 
-      // Editable content area
       const content = document.createElement("div");
       content.className = "tile-content";
       content.spellcheck = true;
@@ -283,47 +272,38 @@
       function renderContent() {
         if (isEditing) {
           content.contentEditable = true;
-          content.innerText = data.text.replace(/<br\s*\/?>/gi, "\n");
-          content.focus();
+          content.innerText = data.text;
+          content.classList.add('tile-editing');
+          setTimeout(() => { content.focus(); }, 20);
         } else {
           content.contentEditable = false;
-          let html = (data.text || "").replace(/\n/g, "<br>");
-          content.innerHTML = linkify(html);
+          content.innerHTML = linkify(data.text || "");
+          content.classList.remove('tile-editing');
         }
       }
       renderContent();
 
-      // Double-click or double-tap to edit
-      let lastTap = 0;
-      content.addEventListener("dblclick", () => {
+      content.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
         isEditing = true;
         renderContent();
       });
-      content.addEventListener("touchend", (e) => {
-        const now = Date.now();
-        if (now - lastTap < 400) {
-          isEditing = true;
-          renderContent();
+      content.addEventListener("touchstart", (e) => {
+        if (!isEditing && e.touches.length === 1) {
+          let timeout = setTimeout(() => {
+            isEditing = true;
+            renderContent();
+          }, 400);
+          content.addEventListener("touchend", function cancel() { clearTimeout(timeout); content.removeEventListener("touchend", cancel); });
         }
-        lastTap = now;
       });
-
-      // Finish editing on blur only
-      content.addEventListener("blur", () => {
+      content.addEventListener("blur", (e) => {
         if (isEditing) {
           isEditing = false;
-          state[data.id].text = content.innerText.replace(/\n/g, "\n");
+          data.text = content.innerText.trim();
           syncToFirestore();
           renderContent();
         }
-      });
-
-      content.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          content.blur();
-        }
-        // Shift+Enter = newline (default behavior)
       });
 
       // Delete button
@@ -334,7 +314,13 @@
       del.title = "Delete";
       del.onclick = (e) => {
         e.stopPropagation();
-        delete state[data.id];
+        if (zoneType === "holding") {
+          state.holding = (Array.isArray(state.holding) ? state.holding : []).filter(t => t.id !== data.id);
+        } else if (typeof dayIndex === "number") {
+          if (Array.isArray(state.days[dayIndex])) {
+            state.days[dayIndex] = state.days[dayIndex].filter(t => t.id !== data.id);
+          }
+        }
         syncToFirestore();
       };
 
@@ -346,135 +332,73 @@
       colorBtn.title = "Change Color";
       colorBtn.onclick = (e) => {
         e.stopPropagation();
-        state[data.id].color = (state[data.id].color + 1) % pastelColors.length;
+        data.color = ((data.color || 0) + 1) % pastelColors.length;
         syncToFirestore();
       };
-
-      // Drag logic
-      tile.addEventListener("dragstart", (e) => {
-        e.dataTransfer.setData("text/plain", data.id);
-        setTimeout(() => tile.classList.add("drag-over"), 0);
-      });
-      tile.addEventListener("dragend", (e) => {
-        tile.classList.remove("drag-over");
-      });
-
-      // Highlight tile on drag over
-      tile.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        tile.classList.add("drag-over");
-      });
-      tile.addEventListener("dragleave", (e) => {
-        tile.classList.remove("drag-over");
-      });
-
-      // Drop directly on tile (insert here)
-      tile.addEventListener("drop", e => {
-        e.preventDefault();
-        tile.classList.remove("drag-over");
-        const draggedId = e.dataTransfer.getData("text/plain");
-        if (state[draggedId] && draggedId !== data.id) {
-          // Insert above (by default) this tile
-          allTilesHere.splice(idx, 0, state[draggedId]);
-          let seen = new Set();
-          let filtered = allTilesHere.filter(t => seen.has(t.id) ? false : seen.add(t.id));
-          filtered.forEach((t, i) => t.order = Date.now() + i);
-          state[draggedId].location = data.location;
-          syncToFirestore();
-        }
-      });
 
       tile.appendChild(content);
       tile.appendChild(del);
       tile.appendChild(colorBtn);
 
-      parent.appendChild(tile);
+      return tile;
     }
 
-    // Drop zone at the very end (bottom) of a day/holding area
-    function renderDropZoneAtEnd(parent, location, allTilesHere) {
-      const dropEnd = document.createElement('div');
-      dropEnd.className = 'drop-zone';
-      dropEnd.addEventListener('dragover', e => { e.preventDefault(); dropEnd.classList.add('drag-over'); });
-      dropEnd.addEventListener('dragleave', e => dropEnd.classList.remove('drag-over'));
-      dropEnd.addEventListener('drop', e => {
-        e.preventDefault();
-        dropEnd.classList.remove('drag-over');
-        const draggedId = e.dataTransfer.getData('text/plain');
-        if (state[draggedId]) {
-          allTilesHere.push(state[draggedId]);
-          let seen = new Set();
-          let filtered = allTilesHere.filter(t => seen.has(t.id) ? false : seen.add(t.id));
-          filtered.forEach((t, i) => t.order = Date.now() + i);
-          state[draggedId].location = location;
-          syncToFirestore();
-        }
+    function removeTileFromAll(id) {
+      let moved;
+      state.holding = (Array.isArray(state.holding) ? state.holding : []).filter(t => {
+        if (t.id === id) moved = t;
+        return t.id !== id;
       });
-      parent.appendChild(dropEnd);
-    }
-
-    // Drop handler for empty days/holding area
-    function handleDropZoneDrop(e, location, idx) {
-      e.preventDefault();
-      const draggedId = e.dataTransfer.getData('text/plain');
-      if (state[draggedId]) {
-        state[draggedId].location = location;
-        state[draggedId].order = Date.now();
-        syncToFirestore();
+      for (let i = 0; i < 14; i++) {
+        if (!Array.isArray(state.days[i])) state.days[i] = [];
+        state.days[i] = state.days[i].filter(t => {
+          if (t.id === id) moved = t;
+          return t.id !== id;
+        });
       }
+      return moved;
     }
 
-    function renderAll() {
-      holdingAreaEl.innerHTML = '';
-      renderCalendar();
-
-      // Holding area tiles (null location)
-      let tilesInHolding = getTilesInLocation(null);
-      tilesInHolding.forEach((t, idx) => renderTile(t, holdingAreaEl, idx, tilesInHolding));
-      renderDropZoneAtEnd(holdingAreaEl, null, tilesInHolding);
-
-      // For each day
-      dates.forEach(date => {
-        const dayBox = [...calendarEl.children].find(d => d.dataset.date === date);
-        if (!dayBox) return;
-        let tilesInDay = getTilesInLocation(date);
-        tilesInDay.forEach((t, idx) => renderTile(t, dayBox, idx, tilesInDay));
-        renderDropZoneAtEnd(dayBox, date, tilesInDay);
-      });
-    }
-
-    // --- Firestore Sync ---
     async function syncToFirestore() {
-      await setDoc(docRef, { state });
+      await setDoc(docRef, { days: state.days, holding: state.holding });
     }
 
-    // Listen to Firestore changes
     onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists() && docSnap.data().state) {
-        state = docSnap.data().state;
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        // Defensive: all lists must be arrays
+        const newDays = {};
+        for (let i = 0; i < 14; i++) {
+          newDays[i] = Array.isArray(data.days?.[i]) ? data.days[i] : [];
+        }
+        state.days = newDays;
+        state.holding = Array.isArray(data.holding) ? data.holding : [];
         renderAll();
       }
     });
 
-    // --- UI BUTTON: Create tile ---
-    window.createTile = createTile;
+    window.createTile = function () {
+      const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      const tileData = { id, text: "New Activity", color: 0 };
+      // Only modify local state, don't mutate DOM
+      state.holding.push(tileData);
+      syncToFirestore();
+    };
 
-    // Initial render
-    renderAll();
-
-    // Utility: close mobile keyboard by tapping elsewhere
-    document.body.addEventListener("touchstart", (e) => {
-      if (!e.target.closest('.tile-content')) {
-        document.activeElement.blur();
-      }
+    window.addEventListener("DOMContentLoaded", () => {
+      renderAll();
     });
+
   </script>
 </head>
 <body>
+  <div id="calendar" class="calendar"></div>
   <h3>Holding Area</h3>
   <div class="controls">
     <button onclick="createTile()">➕ Create Tile</button>
   </div>
-  <div id="holdingArea" class="holding-area"></div>
+  <div id="holdingArea" class="holding-area">
+    <div id="holdingList" class="holding-list"></div>
+  </div>
 </body>
 </html>
