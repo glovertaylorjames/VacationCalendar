@@ -78,9 +78,6 @@
 .holding-area .tile {
   width: calc((100% - 3rem) / 7);
 }
-
-
-
     .tile-controls {
       display: flex;
       justify-content: flex-end;
@@ -98,6 +95,27 @@
       flex-wrap: wrap;
       border-radius: 8px;
     }
+    .tile .del-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: none;
+      border: none;
+      color: #000;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .tile .color-btn {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+
 
     .tile.color-0 { background: #ffdcdc; }
     .tile.color-1 { background: #fff4c2; }
