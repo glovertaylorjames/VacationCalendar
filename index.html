@@ -45,7 +45,7 @@
     }
 
     .day h3 {
-      margin: 0 0 5px 0;
+      margin: 0 0 5px;
       font-size: 0.9rem;
       color: #e0e0e0;
     }
@@ -57,7 +57,7 @@
       margin: 3px 0;
       border-radius: 6px;
       cursor: move;
-      box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.1);
+      box-shadow: 1px 1px 4px rgba(0,0,0,0.1);
       position: relative;
       user-select: none;
       width: 100%;
@@ -81,7 +81,6 @@
     .tile .del-btn { right: 2px; color: #000; font-weight: bold; }
     .tile .color-btn { right: 26px; color: #e0e0e0; }
 
-    /* Color picker menu */
     .color-menu {
       position: absolute;
       top: 24px;
@@ -94,7 +93,15 @@
       gap: 4px;
     }
     .color-menu.show { display: flex; }
-    .swatch { width: 16px; height: 16px; border-radius: 3px; cursor: pointer; border: 1px solid #666; }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      cursor: pointer;
+      border: 1px solid #666;
+    }
+
     .swatch.color-0 { background: #ffdcdc; }
     .swatch.color-1 { background: #fff4c2; }
     .swatch.color-2 { background: #dcffe4; }
@@ -116,135 +123,89 @@
 </head>
 <body>
   <div id="calendar" class="calendar"></div>
-
   <h3>Holding Area</h3>
   <div class="controls">
     <button id="createBtn">➕ Create Tile</button>
   </div>
-  <div id="holdingArea" class="holding-area" ondragover="allowDrop(event)" ondrop="drop(event, null)"></div>
+  <div id="holdingArea" class="holding-area" ondragover="allowDrop(event)" ondrop="drop(event,null)"></div>
 
   <script>
-    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const dates = ['July 27','July 28','July 29','July 30','July 31','August 1','August 2',
-                   'August 3','August 4','August 5','August 6','August 7','August 8','August 9'];
-    const pastelColors = [0,1,2,3,4,5];
-    let state = JSON.parse(localStorage.getItem('calendarState') || '{}');
+    const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const dates=['July 27','July 28','July 29','July 30','July 31','August 1','August 2',
+                 'August 3','August 4','August 5','August 6','August 7','August 8','August 9'];
+    const pastelColors=[0,1,2,3,4,5];
+    let state=JSON.parse(localStorage.getItem('calendarState')||'{}');
+    const calendarEl=document.getElementById('calendar');
+    const holdingAreaEl=document.getElementById('holdingArea');
+    document.getElementById('createBtn').addEventListener('click',()=>createTile());
 
-    const calendarEl = document.getElementById('calendar');
-    const holdingAreaEl = document.getElementById('holdingArea');
-    document.getElementById('createBtn').addEventListener('click', () => createTile());
-
-    function renderCalendar() {
-      calendarEl.innerHTML = '';
-      dates.forEach((date, i) => {
-        const dayBox = document.createElement('div');
-        dayBox.className = 'day';
-        dayBox.dataset.date = date;
-        dayBox.ondragover = allowDrop;
-        dayBox.ondrop = (e) => drop(e, date);
-        const title = document.createElement('h3');
-        title.innerText = `${days[i % 7]} (${date})`;
-        dayBox.appendChild(title);
-        calendarEl.appendChild(dayBox);
+    function renderCalendar(){
+      calendarEl.innerHTML='';
+      dates.forEach((date,i)=>{
+        const dayBox=document.createElement('div');
+        dayBox.className='day'; dayBox.dataset.date=date;
+        dayBox.ondragover=allowDrop; dayBox.ondrop=e=>drop(e,date);
+        const title=document.createElement('h3'); title.innerText=`${days[i%7]} (${date})`;
+        dayBox.appendChild(title); calendarEl.appendChild(dayBox);
       });
     }
 
-    function createTile(text = 'New Activity', color = 0, location = null) {
-      // Ensure valid arguments (prevent event objects creating new tiles)
-      if (typeof text !== 'string') text = 'New Activity';
-      if (typeof color !== 'number') color = 0;
-      const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2,5)}`;
-      state[id] = { id, text, color, location };
-      renderAll();
-      saveState();
+    function createTile(text='New Activity',color=0,location=null){
+      if(typeof text!=='string') text='New Activity';
+      if(typeof color!=='number') color=0;
+      const id=`tile-${Date.now()}-${Math.random().toString(36).substr(2,5)}`;
+      state[id]={id,text,color,location}; renderAll(); saveState();
     }
 
-    function renderTile(data) {
-      const tile = document.createElement('div');
-      tile.className = `tile color-${data.color}`;
-      tile.draggable = true;
-      tile.contentEditable = true;
-      tile.innerText = data.text;
-      tile.dataset.id = data.id;
-
-      // Update text safely
-      tile.addEventListener('input', () => {
-        if (state[data.id]) {
-          state[data.id].text = tile.innerText.trim();
-          saveState();
-        }
+    function renderTile(data){
+      const tile=document.createElement('div');
+      tile.className=`tile color-${data.color}`; tile.draggable=true;
+      tile.setAttribute('contenteditable','true'); tile.innerText=data.text;
+      tile.dataset.id=data.id;
+      // prevent controls from being editable
+      tile.addEventListener('keydown',e=>{
+        if(e.target!==tile) e.stopPropagation();
       });
 
-      // Delete button
-      const del = document.createElement('button');
-      del.className = 'del-btn';
-      del.innerText = 'X';
-      del.addEventListener('click', (e) => {
-        e.stopPropagation();
-        delete state[data.id];
-        renderAll();
-        saveState();
+      // sync text
+      tile.addEventListener('input',()=>{
+        if(state[data.id]){ state[data.id].text=tile.innerText.trim(); saveState(); }
       });
 
-      // Color picker
-      const colorBtn = document.createElement('button');
-      colorBtn.className = 'color-btn';
-      colorBtn.innerText = '🎨';
-      const menu = document.createElement('div');
-      menu.className = 'color-menu';
-      pastelColors.forEach(i => {
-        const swatch = document.createElement('div');
-        swatch.className = `swatch color-${i}`;
-        swatch.dataset.color = i;
-        swatch.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          if (state[data.id]) state[data.id].color = parseInt(swatch.dataset.color);
-          renderAll();
-          saveState();
-        });
-        menu.appendChild(swatch);
+      const del=document.createElement('button'); del.className='del-btn';
+      del.innerText='X'; del.setAttribute('contenteditable','false');
+      del.addEventListener('click',e=>{ e.stopPropagation(); delete state[data.id]; renderAll(); saveState(); });
+
+      const colorBtn=document.createElement('button'); colorBtn.className='color-btn';
+      colorBtn.innerText='🎨'; colorBtn.setAttribute('contenteditable','false');
+      const menu=document.createElement('div'); menu.className='color-menu';
+      menu.setAttribute('contenteditable','false');
+      pastelColors.forEach(i=>{
+        const swatch=document.createElement('div'); swatch.className=`swatch color-${i}`;
+        swatch.dataset.color=i; swatch.setAttribute('contenteditable','false');
+        swatch.addEventListener('click',ev=>{
+          ev.stopPropagation(); state[data.id].color=parseInt(swatch.dataset.color);
+          menu.classList.remove('show'); renderAll(); saveState();
+        }); menu.appendChild(swatch);
       });
-      colorBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        menu.classList.toggle('show');
-      });
+      colorBtn.addEventListener('click',e=>{ e.stopPropagation(); menu.classList.toggle('show'); });
 
-      tile.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', data.id);
-      });
+      tile.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',data.id));
 
-      tile.appendChild(del);
-      tile.appendChild(colorBtn);
-      tile.appendChild(menu);
-
-      // Attach to correct container
-      if (data.location && calendarEl.querySelector(`[data-date="${data.location}"]`)) {
-        calendarEl.querySelector(`[data-date="${data.location}"]`).appendChild(tile);
-      } else {
-        holdingAreaEl.appendChild(tile);
-      }
+      tile.appendChild(del); tile.appendChild(colorBtn); tile.appendChild(menu);
+      const parent= data.location && calendarEl.querySelector(`[data-date="${data.location}"]`)
+        ? calendarEl.querySelector(`[data-date="${data.location}"]`)
+        : holdingAreaEl;
+      parent.appendChild(tile);
     }
 
-    function allowDrop(e) {
-      e.preventDefault();
+    function allowDrop(e){ e.preventDefault(); }
+    function drop(e,date){ e.preventDefault(); const id=e.dataTransfer.getData('text/plain');
+      if(state[id]) state[id].location=date; renderAll(); saveState();
     }
 
-    function drop(e, date) {
-      e.preventDefault();
-      const id = e.dataTransfer.getData('text/plain');
-      if (state[id]) state[id].location = date;
-      renderAll();
-      saveState();
-    }
-
-    function renderAll() {
-      renderCalendar();
-      Object.values(state).forEach(renderTile);
-    }
-
-    function saveState() {
-      localStorage.setItem('calendarState', JSON.stringify(state));
-    }
+    function renderAll(){ renderCalendar(); Object.values(state).forEach(renderTile); }
+    function saveState(){ localStorage.setItem('calendarState',JSON.stringify(state)); }
 
     renderAll();
   </script>
