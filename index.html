@@ -87,6 +87,35 @@
       color: #e0e0e0;
     }
 
+    /* Color picker menu */
+    .color-menu {
+      position: absolute;
+      top: 24px;
+      right: 26px;
+      background: #333;
+      padding: 4px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      display: none;
+      gap: 4px;
+    }
+    .color-menu.show {
+      display: flex;
+    }
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      cursor: pointer;
+      border: 1px solid #666;
+    }
+    .swatch.color-0 { background: #ffdcdc; }
+    .swatch.color-1 { background: #fff4c2; }
+    .swatch.color-2 { background: #dcffe4; }
+    .swatch.color-3 { background: #dceaff; }
+    .swatch.color-4 { background: #f0dcff; }
+    .swatch.color-5 { background: #ffebdc; }
+
     .holding-area {
       margin-top: 2rem;
       padding: 1rem;
@@ -97,13 +126,6 @@
       flex-wrap: wrap;
       border-radius: 8px;
     }
-
-    .tile.color-0 { background: #ffdcdc; }
-    .tile.color-1 { background: #fff4c2; }
-    .tile.color-2 { background: #dcffe4; }
-    .tile.color-3 { background: #dceaff; }
-    .tile.color-4 { background: #f0dcff; }
-    .tile.color-5 { background: #ffebdc; }
   </style>
 </head>
 <body>
@@ -163,18 +185,7 @@
       tile.innerText = data.text;
       tile.dataset.id = data.id;
 
-      tile.addEventListener("dragstart", (e) => {
-        e.dataTransfer.setData("text/plain", data.id);
-      });
-
-      tile.addEventListener("input", (e) => {
-        state[data.id].text = tile.innerText.trim();
-        saveState();
-      });
-
-      tile.addEventListener("click", () => { tile.draggable = false; });
-      tile.addEventListener("blur", () => { tile.draggable = true; });
-
+      // delete button
       const del = document.createElement("button");
       del.className = "del-btn";
       del.innerText = "X";
@@ -185,19 +196,45 @@
         saveState();
       };
 
+      // color picker button and menu
       const colorBtn = document.createElement("button");
       colorBtn.className = "color-btn";
       colorBtn.innerText = "🎨";
+      const menu = document.createElement("div");
+      menu.className = "color-menu";
+      pastelColors.forEach(i => {
+        const swatch = document.createElement("div");
+        swatch.className = `swatch color-${i}`;
+        swatch.dataset.color = i;
+        swatch.onclick = (ev) => {
+          ev.stopPropagation();
+          state[data.id].color = parseInt(swatch.dataset.color);
+          renderAll();
+          saveState();
+        };
+        menu.appendChild(swatch);
+      });
       colorBtn.onclick = (e) => {
         e.stopPropagation();
-        state[data.id].color = (state[data.id].color + 1) % pastelColors.length;
-        renderAll();
-        saveState();
+        menu.classList.toggle('show');
       };
+
+      // drag & edit events
+      tile.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", data.id);
+      });
+      tile.addEventListener("input", () => {
+        state[data.id].text = tile.innerText.trim();
+        saveState();
+      });
+      tile.addEventListener("click", () => { tile.draggable = false; });
+      tile.addEventListener("blur", () => { tile.draggable = true; });
 
       tile.appendChild(del);
       tile.appendChild(colorBtn);
+      tile.appendChild(menu);
 
+      // placement
       if (data.location === null) {
         holdingAreaEl.appendChild(tile);
       } else {
