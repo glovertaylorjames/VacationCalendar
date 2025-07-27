@@ -71,13 +71,15 @@
     .tile button {
       position: absolute;
       top: 2px;
-      right: 2px;
       background: transparent;
       border: none;
       color: #e0e0e0;
       cursor: pointer;
       font-size: 14px;
     }
+
+    .tile .del-btn { right: 2px; }
+    .tile .color-btn { right: 26px; }
 
     .holding-area {
       margin-top: 2rem;
@@ -173,6 +175,7 @@
       });
 
       const del = document.createElement("button");
+      del.className = "del-btn";
       del.innerText = "🗑";
       del.onclick = (e) => {
         e.stopPropagation();
@@ -182,6 +185,7 @@
       };
 
       const colorBtn = document.createElement("button");
+      colorBtn.className = "color-btn";
       colorBtn.innerText = "🎨";
       colorBtn.onclick = (e) => {
         e.stopPropagation();
