@@ -55,6 +55,12 @@
       transition: min-height 0.2s;
       min-height: 150px;
     }
+    .day.inactive {
+      opacity: 0.35;
+    }
+    .day.inactive h3 {
+      color: #bdbdbd;
+    }
     .day h3 {
       margin: 0 0 5px;
       font-size: 20pt;
@@ -214,11 +220,48 @@
     const days = [
       'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
     ];
-    const dates = [
-      'July 27', 'July 28', 'July 29', 'July 30', 'July 31', 'August 1', 'August 2',
-      'August 3', 'August 4', 'August 5', 'August 6', 'August 7', 'August 8', 'August 9'
-    ];
     const pastelColors = [0, 1, 2, 3, 4, 5];
+
+    // --- Trip date helpers (Step C)
+    function formatDateLabel(iso) {
+      const d = fromISODate(iso);
+      // Short month label, e.g. "Jan 8"
+      const month = d.toLocaleString(undefined, { month: "short" });
+      return `${month} ${d.getDate()}`;
+    }
+
+    function getActiveDatesISO(startISO, endISO) {
+      if (!startISO || !endISO) return [];
+      const start = fromISODate(startISO);
+      const end = fromISODate(endISO);
+      if (end < start) return [];
+
+      const out = [];
+      const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+      const maxDays = 366; // safety cap
+      let guard = 0;
+
+      while (cur <= end && guard < maxDays) {
+        out.push(toISODate(cur));
+        cur.setDate(cur.getDate() + 1);
+        guard++;
+      }
+      return out;
+    }
+
+    function ensureTilesInActiveRange(activeSet) {
+      // If trip settings change, keep tiles reachable by moving out-of-range tiles back to holding.
+      let changed = false;
+      for (const t of tiles) {
+        if (t.location && !activeSet.has(t.location)) {
+          t.location = null;
+          changed = true;
+        }
+      }
+      if (changed) syncToFirestore();
+    }
+
+    const pastelColors = [0, 1, 2, 3, 4, 5]; = [0, 1, 2, 3, 4, 5];
 
     let tiles = [];
     let draggingId = null;
@@ -237,45 +280,134 @@
     const calendarEl = document.getElementById("calendar");
     const holdingAreaEl = document.getElementById("holdingArea");
 
+    // Trip settings (Step B: state + wiring; calendar rendering will be updated in Step C)
+    let tripStartISO = null;
+    let tripEndISO = null;
+
+    function toISODate(d) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function fromISODate(iso) {
+      // Create a local date (avoids UTC parsing quirks of new Date('YYYY-MM-DD'))
+      const [y, m, d] = iso.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
+
+    function addDaysISO(iso, daysToAdd) {
+      const d = fromISODate(iso);
+      d.setDate(d.getDate() + daysToAdd);
+      return toISODate(d);
+    }
+
+    function initTripControls() {
+      const startInput = document.getElementById("tripStart");
+      const endInput = document.getElementById("tripEnd");
+      const applyBtn = document.getElementById("applyTrip");
+
+      if (!startInput || !endInput || !applyBtn) return;
+
+      // Default to a 14-day window starting today (local)
+      const defaultStart = toISODate(new Date());
+      const defaultEnd = addDaysISO(defaultStart, 13);
+
+      // Initialize inputs (only if empty)
+      if (!startInput.value) startInput.value = defaultStart;
+      if (!endInput.value) endInput.value = defaultEnd;
+
+      // Initialize state from inputs
+      tripStartISO = startInput.value;
+      tripEndISO = endInput.value;
+
+      applyBtn.addEventListener("click", () => {
+        const s = startInput.value;
+        const e = endInput.value;
+        if (!s || !e) return;
+
+        // Ensure start <= end
+        if (fromISODate(e) < fromISODate(s)) {
+          // Swap if user entered them backwards
+          startInput.value = e;
+          endInput.value = s;
+          tripStartISO = e;
+          tripEndISO = s;
+        } else {
+          tripStartISO = s;
+          tripEndISO = e;
+        }
+
+        // Step C will use these to generate the calendar grid.
+        renderAll();
+      });
+    }
+
     function renderCalendar() {
       calendarEl.innerHTML = "";
       const baseTileHeight = 80;
-      for (let i = 0; i < 14; i++) {
-        const date = dates[i];
+
+      const activeDates = getActiveDatesISO(tripStartISO, tripEndISO);
+      if (activeDates.length === 0) return;
+
+      const activeSet = new Set(activeDates);
+      ensureTilesInActiveRange(activeSet);
+
+      const firstDow = fromISODate(activeDates[0]).getDay(); // 0=Sun..6=Sat
+      const totalCells = Math.ceil((firstDow + activeDates.length) / 7) * 7;
+
+      for (let cell = 0; cell < totalCells; cell++) {
+        const dateIdx = cell - firstDow;
+        const isActive = dateIdx >= 0 && dateIdx < activeDates.length;
+
         const dayBox = document.createElement("div");
-        dayBox.className = "day";
-        dayBox.dataset.date = date;
-
-        const dayTiles = tiles.filter(t => t.location === date);
-        const minHeightPx = Math.max(150, (dayTiles.length + 1.5) * baseTileHeight);
-        dayBox.style.minHeight = minHeightPx + "px";
-
-        dayBox.addEventListener("dragover", (e) => {
-          e.preventDefault();
-          if (!draggingId) return;
-          dragTargetDay = date;
-          dragOverId = null;
-          dragOverPos = "day";
-        });
-        dayBox.addEventListener("drop", (e) => {
-          e.preventDefault();
-          if (!draggingId) return;
-          moveTileToDay(draggingId, date);
-          draggingId = null;
-          dragOverId = null;
-          dragOverPos = null;
-          dragTargetDay = null;
-          renderAll();
-        });
+        dayBox.className = isActive ? "day" : "day inactive";
 
         const title = document.createElement("h3");
-        title.innerHTML = `${days[i % 7]}<br>${date}`;
-        dayBox.appendChild(title);
 
-        dayTiles.forEach((tileData, idx) => {
-          const tile = renderTile(tileData, dayTiles, idx);
-          dayBox.appendChild(tile);
-        });
+        if (isActive) {
+          const iso = activeDates[dateIdx];
+          const dowLabel = days[cell % 7];
+          const dateLabel = formatDateLabel(iso);
+
+          dayBox.dataset.date = iso;
+
+          const dayTiles = tiles.filter(t => t.location === iso);
+          const minHeightPx = Math.max(150, (dayTiles.length + 1.5) * baseTileHeight);
+          dayBox.style.minHeight = minHeightPx + "px";
+
+          dayBox.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            if (!draggingId) return;
+            dragTargetDay = iso;
+            dragOverId = null;
+            dragOverPos = "day";
+          });
+
+          dayBox.addEventListener("drop", (e) => {
+            e.preventDefault();
+            if (!draggingId) return;
+            moveTileToDay(draggingId, iso);
+            draggingId = null;
+            dragOverId = null;
+            dragOverPos = null;
+            dragTargetDay = null;
+            renderAll();
+          });
+
+          title.innerHTML = `${dowLabel}<br>${dateLabel}`;
+          dayBox.appendChild(title);
+
+          dayTiles.forEach((tileData, idx) => {
+            const tile = renderTile(tileData, dayTiles, idx);
+            dayBox.appendChild(tile);
+          });
+        } else {
+          // Inactive padding cell: show day-of-week only.
+          title.innerHTML = `${days[cell % 7]}<br>&nbsp;`;
+          dayBox.appendChild(title);
+        }
 
         calendarEl.appendChild(dayBox);
       }
@@ -413,6 +545,7 @@
     };
 
     window.addEventListener("DOMContentLoaded", () => {
+      initTripControls();
       renderAll();
     });
   </script>
