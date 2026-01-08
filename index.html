@@ -249,8 +249,12 @@
       return out;
     }
 
+    function isISODateString(s) {
+      return typeof s === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(s);
+    }
+
     function ensureTilesInActiveRange(activeSet) {
-      // If trip settings change, keep tiles reachable by moving out-of-range tiles back to holding.
+      // Keep tiles reachable by moving out-of-range tiles back to holding.
       let changed = false;
       for (const t of tiles) {
         if (t.location && !activeSet.has(t.location)) {
@@ -258,10 +262,20 @@
           changed = true;
         }
       }
-      if (changed) syncToFirestore();
+      return changed;
     }
 
-    
+    function normalizeTileLocationsToISO() {
+      // Step D: enforce ISO-only locations. Any legacy/non-ISO location becomes holding.
+      let changed = false;
+      for (const t of tiles) {
+        if (t.location && !isISODateString(t.location)) {
+          t.location = null;
+          changed = true;
+        }
+      }
+      return changed;
+    }
 
     let tiles = [];
     let draggingId = null;
@@ -339,7 +353,14 @@
           tripEndISO = e;
         }
 
-        // Step C will use these to generate the calendar grid.
+        // Step D: enforce ISO locations and keep tiles in-range for the selected trip.
+        let changed = false;
+        changed = normalizeTileLocationsToISO() || changed;
+        const activeDates = getActiveDatesISO(tripStartISO, tripEndISO);
+        const activeSet = new Set(activeDates);
+        changed = ensureTilesInActiveRange(activeSet) || changed;
+        if (changed) syncToFirestore();
+
         renderAll();
       });
     }
@@ -350,9 +371,6 @@
 
       const activeDates = getActiveDatesISO(tripStartISO, tripEndISO);
       if (activeDates.length === 0) return;
-
-      const activeSet = new Set(activeDates);
-      ensureTilesInActiveRange(activeSet);
 
       const firstDow = fromISODate(activeDates[0]).getDay(); // 0=Sun..6=Sat
       const totalCells = Math.ceil((firstDow + activeDates.length) / 7) * 7;
@@ -507,6 +525,17 @@
     onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists() && Array.isArray(docSnap.data().tiles)) {
         tiles = docSnap.data().tiles;
+
+        // Step D: normalize legacy locations + keep tiles within the current trip.
+        let changed = false;
+        changed = normalizeTileLocationsToISO() || changed;
+        if (tripStartISO && tripEndISO) {
+          const activeDates = getActiveDatesISO(tripStartISO, tripEndISO);
+          const activeSet = new Set(activeDates);
+          changed = ensureTilesInActiveRange(activeSet) || changed;
+        }
+        if (changed) syncToFirestore();
+
         renderAll();
       }
     });
