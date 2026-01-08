@@ -246,7 +246,7 @@
         dayBox.addEventListener("drop", (e) => {
           e.preventDefault();
           if (!draggingId) return;
-          moveTileToDay(draggingId, date, null);
+          moveTileToDay(draggingId, date);
           draggingId = null;
           dragOverId = null;
           dragOverPos = null;
