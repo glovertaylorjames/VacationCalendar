@@ -160,6 +160,29 @@
       z-index: 10;
       padding: 0 2px;
     }
+    /* Tile menu (three dots) — future home for extra tile settings */
+    .tile .menu-btn {
+      position: absolute;
+      top: 6px;
+      right: 34px;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid #0002;
+      background: rgba(255,255,255,0.45);
+      color: #222;
+      cursor: pointer;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      line-height: 1;
+      padding: 0;
+    }
+    .tile .menu-btn:hover {
+      background: rgba(255,255,255,0.75);
+    }
     .tile .color-btn {
       position: absolute;
       bottom: 6px;
@@ -999,9 +1022,22 @@
         }
       };
 
+      // Three-dots menu (for now: opens link editor; later: more settings)
+      const menuBtn = document.createElement("button");
+      menuBtn.className = "menu-btn";
+      menuBtn.type = "button";
+      menuBtn.title = "Tile menu";
+      menuBtn.textContent = "⋯";
+      menuBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openLinkEditor();
+      };
+
       tile.appendChild(linkEditor);
       tile.appendChild(content);
       tile.appendChild(del);
+      tile.appendChild(menuBtn);
       tile.appendChild(colorBtn);
       tile.appendChild(linkBtn);
 
