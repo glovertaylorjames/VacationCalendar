@@ -449,6 +449,7 @@
             e.preventDefault();
             if (!draggingId) return;
             moveTileToDay(draggingId, iso);
+            clearDragHover();
             draggingId = null;
             dragOverId = null;
             dragOverPos = null;
@@ -521,9 +522,11 @@
         }
       };
 
-      tile.ondragleave = () => {
-        // dragleave is noisy; we primarily manage hover via dragover + clear on dragend/drop.
-        // Still clear if the current hovered element is this tile.
+      tile.ondragleave = (e) => {
+        // Only clear when we truly leave the tile, not when moving between its children.
+        // (dragleave fires a lot as you cross buttons/text inside the tile.)
+        if (e && e.relatedTarget && tile.contains(e.relatedTarget)) return;
+
         if (dragHoverEl === tile) {
           clearDragHover();
         }
@@ -573,6 +576,7 @@
         tiles.push(moving);
         syncToFirestore();
 
+        clearDragHover();
         draggingId = null;
         dragOverId = null;
         dragOverPos = null;
@@ -714,6 +718,7 @@
         e.preventDefault();
         if (!draggingId) return;
         moveTileToDay(draggingId, null);
+        clearDragHover();
         draggingId = null;
         renderAll();
       };
