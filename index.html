@@ -690,6 +690,8 @@
       };
 
       let isEditing = (pendingEditTileId === data.id);
+      // Step K1: capture the tile's text when entering edit mode (for cancel/revert later)
+      let editOriginalText = data.text || "";
       const content = document.createElement("div");
       content.className = "tile-content";
       content.spellcheck = true;
@@ -720,8 +722,35 @@
       renderContent();
 
       content.addEventListener("dblclick", () => {
+        // Step K1: snapshot the original text at the moment editing begins
+        editOriginalText = data.text || "";
         isEditing = true;
         renderContent();
+      });
+
+      // Step K2: keyboard controls while editing
+      // Enter = save & exit (Shift+Enter allows newline)
+      // Esc = cancel & revert
+      content.addEventListener("keydown", (e) => {
+        if (!isEditing) return;
+
+        if (e.key === "Escape") {
+          e.preventDefault();
+          // Revert to the original text and exit edit mode without saving
+          data.text = editOriginalText;
+          isEditing = false;
+          renderContent();
+          return;
+        }
+
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          // Save and exit edit mode
+          data.text = content.innerText.trim();
+          isEditing = false;
+          syncToFirestore();
+          renderContent();
+        }
       });
 
       content.addEventListener("blur", () => {
