@@ -417,6 +417,11 @@
           dayBox.addEventListener("dragover", (e) => {
             e.preventDefault();
             if (!draggingId) return;
+
+            // Step H3: only treat this as a "day" hover if we're not currently over a tile.
+            // (Prevents day hover from fighting tile hover insertion cues.)
+            if (e.target && e.target.closest && e.target.closest(".tile")) return;
+
             dragTargetDay = iso;
             dragOverId = null;
             dragOverPos = "day";
@@ -465,6 +470,77 @@
 
       tile.ondragend = () => {
         draggingId = null;
+        dragOverId = null;
+        dragOverPos = null;
+        dragTargetDay = null;
+        renderAll();
+      };
+
+      // Step H1: track hover target + whether we're inserting above/below a tile
+      tile.ondragover = (e) => {
+        if (!draggingId || draggingId === data.id) return;
+        e.preventDefault();
+        const rect = tile.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        dragOverId = data.id;
+        dragOverPos = (e.clientY < midpoint) ? "above" : "below";
+        dragTargetDay = data.location ?? null;
+        renderAll();
+      };
+
+      tile.ondragleave = () => {
+        if (dragOverId === data.id) {
+          dragOverId = null;
+          dragOverPos = null;
+          dragTargetDay = null;
+          renderAll();
+        }
+      };
+
+      // Step H2: drop onto a tile inserts above/below (Trello-style)
+      tile.ondrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!draggingId || draggingId === data.id) return;
+
+        const moving = tiles.find(t => t.id === draggingId);
+        if (!moving) return;
+
+        // Determine target "column" (day ISO or holding/null)
+        const targetLoc = data.location ?? null;
+
+        // Remove moving tile from global list first
+        tiles = tiles.filter(t => t.id !== draggingId);
+
+        // Work with siblings as rendered (already sorted), excluding the moving tile
+        const siblings = siblingTiles.filter(t => t.id !== draggingId);
+        const targetIdx = siblings.findIndex(t => t.id === data.id);
+        if (targetIdx === -1) return;
+
+        const pos = (dragOverPos === "above" || dragOverPos === "below") ? dragOverPos : "below";
+
+        let prevOrder;
+        let nextOrder;
+
+        if (pos === "above") {
+          nextOrder = (siblings[targetIdx].order ?? Date.now());
+          prevOrder = (targetIdx > 0) ? (siblings[targetIdx - 1].order ?? (nextOrder - 1)) : (nextOrder - 1);
+        } else {
+          prevOrder = (siblings[targetIdx].order ?? Date.now());
+          nextOrder = (targetIdx < siblings.length - 1) ? (siblings[targetIdx + 1].order ?? (prevOrder + 1)) : (prevOrder + 1);
+        }
+
+        moving.location = targetLoc;
+        moving.order = (prevOrder + nextOrder) / 2;
+
+        tiles.push(moving);
+        syncToFirestore();
+
+        draggingId = null;
+        dragOverId = null;
+        dragOverPos = null;
+        dragTargetDay = null;
+        renderAll();
       };
 
       let isEditing = false;
@@ -523,6 +599,16 @@
       tile.appendChild(content);
       tile.appendChild(del);
       tile.appendChild(colorBtn);
+
+      // Visual cue for insertion point (H1)
+      if (draggingId && dragOverId === data.id) {
+        tile.classList.add("drag-over");
+        tile.style.marginTop = (dragOverPos === "above") ? "28px" : "3px";
+        tile.style.marginBottom = (dragOverPos === "below") ? "28px" : "3px";
+      } else {
+        tile.style.marginTop = "3px";
+        tile.style.marginBottom = "3px";
+      }
 
       return tile;
     }
