@@ -213,7 +213,22 @@
     (async () => {
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists()) {
-        await setDoc(docRef, { tiles: [] });
+        // Step E1: initialize shared trip settings along with tiles
+        const toISO = (d) => {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          return `${y}-${m}-${day}`;
+        };
+        const start = new Date();
+        const end = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+        end.setDate(end.getDate() + 13);
+
+        await setDoc(docRef, {
+          tiles: [],
+          tripStartISO: toISO(start),
+          tripEndISO: toISO(end)
+        });
       }
     })();
 
@@ -250,7 +265,7 @@
     }
 
     function isISODateString(s) {
-      return typeof s === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(s);
+      return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
     }
 
     function ensureTilesInActiveRange(activeSet) {
@@ -359,7 +374,9 @@
         const activeDates = getActiveDatesISO(tripStartISO, tripEndISO);
         const activeSet = new Set(activeDates);
         changed = ensureTilesInActiveRange(activeSet) || changed;
-        if (changed) syncToFirestore();
+
+        // Step E4: always persist trip settings on Apply (even if tiles didn't change)
+        syncToFirestore();
 
         renderAll();
       });
@@ -519,12 +536,25 @@
     }
 
     async function syncToFirestore() {
-      await setDoc(docRef, { tiles });
+      // Step E2: persist shared trip settings along with tiles (merge to avoid wiping fields)
+      await setDoc(docRef, { tiles, tripStartISO, tripEndISO }, { merge: true });
     }
 
     onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists() && Array.isArray(docSnap.data().tiles)) {
-        tiles = docSnap.data().tiles;
+        const data = docSnap.data();
+        tiles = data.tiles;
+
+        // Step E3: load shared trip settings from Firestore and reflect them in the UI/state
+        if (isISODateString(data.tripStartISO) && isISODateString(data.tripEndISO)) {
+          tripStartISO = data.tripStartISO;
+          tripEndISO = data.tripEndISO;
+
+          const startInput = document.getElementById("tripStart");
+          const endInput = document.getElementById("tripEnd");
+          if (startInput && startInput.value !== tripStartISO) startInput.value = tripStartISO;
+          if (endInput && endInput.value !== tripEndISO) endInput.value = tripEndISO;
+        }
 
         // Step D: normalize legacy locations + keep tiles within the current trip.
         let changed = false;
