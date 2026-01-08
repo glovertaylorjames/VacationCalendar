@@ -191,6 +191,16 @@
       min-height: 40px;
       margin: 3px 0;
     }
+    /* Extra drop target above the first tile in a day (reduces top-insert jank) */
+    .top-drop {
+      height: 18px;
+      margin: 2px 0 4px;
+      border-radius: 6px;
+    }
+    .top-drop.drag-over {
+      outline: 3px dashed #0077cc;
+      background: #bde3ff33;
+    }
   </style>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
@@ -459,6 +469,48 @@
 
           title.innerHTML = `${dowLabel}<br>${dateLabel}`;
           dayBox.appendChild(title);
+
+          // Drop zone above the first tile (so "insert at top" is easy)
+          const topDrop = document.createElement("div");
+          topDrop.className = "top-drop";
+          topDrop.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+            if (!draggingId) return;
+            topDrop.classList.add("drag-over");
+          });
+          topDrop.addEventListener("dragleave", () => {
+            topDrop.classList.remove("drag-over");
+          });
+          topDrop.addEventListener("drop", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            topDrop.classList.remove("drag-over");
+            if (!draggingId) return;
+
+            const moving = tiles.find(t => t.id === draggingId);
+            if (!moving) return;
+
+            // Move into this day and place above the first tile
+            tiles = tiles.filter(t => t.id !== draggingId);
+            moving.location = iso;
+
+            const firstOrder = (dayTiles[0] && dayTiles[0].order != null) ? dayTiles[0].order : Date.now();
+            moving.order = firstOrder - 1;
+
+            tiles.push(moving);
+            syncToFirestore();
+
+            clearDragHover();
+            draggingId = null;
+            dragOverId = null;
+            dragOverPos = null;
+            dragTargetDay = null;
+            renderAll();
+          });
+
+          dayBox.appendChild(topDrop);
 
           dayTiles.forEach((tileData, idx) => {
             const tile = renderTile(tileData, dayTiles, idx);
