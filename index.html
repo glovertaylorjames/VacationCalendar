@@ -298,6 +298,23 @@
     let dragOverPos = null;
     let dragTargetDay = null;
 
+    // Step J2: apply drag hover visuals without re-rendering (prevents flicker / 🚫 cursor)
+    let dragHoverEl = null;
+    function clearDragHover() {
+      if (!dragHoverEl) return;
+      dragHoverEl.classList.remove("drag-over");
+      dragHoverEl.style.marginTop = "3px";
+      dragHoverEl.style.marginBottom = "3px";
+      dragHoverEl = null;
+    }
+    function applyDragHover(el, pos) {
+      if (!el) return;
+      el.classList.add("drag-over");
+      el.style.marginTop = (pos === "above") ? "28px" : "3px";
+      el.style.marginBottom = (pos === "below") ? "28px" : "3px";
+      dragHoverEl = el;
+    }
+
     function linkify(text) {
       if (!text) return "";
       return text.replace(
@@ -416,6 +433,7 @@
 
           dayBox.addEventListener("dragover", (e) => {
             e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
             if (!draggingId) return;
 
             // Step H3: only treat this as a "day" hover if we're not currently over a tile.
@@ -473,6 +491,7 @@
         dragOverId = null;
         dragOverPos = null;
         dragTargetDay = null;
+        clearDragHover();
         renderAll();
       };
 
@@ -480,20 +499,38 @@
       tile.ondragover = (e) => {
         if (!draggingId || draggingId === data.id) return;
         e.preventDefault();
+        // Helps the browser show a valid drop target (reduces 🚫 icon)
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+
         const rect = tile.getBoundingClientRect();
         const midpoint = rect.top + rect.height / 2;
+        const pos = (e.clientY < midpoint) ? "above" : "below";
+
+        // Track target for H2 drop logic
         dragOverId = data.id;
-        dragOverPos = (e.clientY < midpoint) ? "above" : "below";
+        dragOverPos = pos;
         dragTargetDay = data.location ?? null;
-        renderAll();
+
+        // Apply hover visuals directly, without re-render
+        if (dragHoverEl !== tile) {
+          clearDragHover();
+          applyDragHover(tile, pos);
+        } else {
+          // same tile, but maybe pos flipped
+          applyDragHover(tile, pos);
+        }
       };
 
       tile.ondragleave = () => {
+        // dragleave is noisy; we primarily manage hover via dragover + clear on dragend/drop.
+        // Still clear if the current hovered element is this tile.
+        if (dragHoverEl === tile) {
+          clearDragHover();
+        }
         if (dragOverId === data.id) {
           dragOverId = null;
           dragOverPos = null;
           dragTargetDay = null;
-          renderAll();
         }
       };
 
@@ -600,16 +637,6 @@
       tile.appendChild(del);
       tile.appendChild(colorBtn);
 
-      // Visual cue for insertion point (H1)
-      if (draggingId && dragOverId === data.id) {
-        tile.classList.add("drag-over");
-        tile.style.marginTop = (dragOverPos === "above") ? "28px" : "3px";
-        tile.style.marginBottom = (dragOverPos === "below") ? "28px" : "3px";
-      } else {
-        tile.style.marginTop = "3px";
-        tile.style.marginBottom = "3px";
-      }
-
       return tile;
     }
 
@@ -680,6 +707,7 @@
       // Allow dropping tiles back into holding area
       holdingAreaEl.ondragover = (e) => {
         e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
       };
 
       holdingAreaEl.ondrop = (e) => {
