@@ -26,6 +26,20 @@
       font-weight: 600;
       font-size: 1rem;
     }
+    .controls input[type="date"] {
+      background: #1e1e1e;
+      color: #e0e0e0;
+      border: 1px solid #333;
+      padding: 0.5rem 0.75rem;
+      border-radius: 4px;
+      font-family: 'Lexend', Arial, sans-serif;
+      font-weight: 300;
+      font-size: 1rem;
+    }
+    .controls label {
+      margin-right: 0.25rem;
+      font-weight: 600;
+    }
     .calendar {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
@@ -404,6 +418,15 @@
   </script>
 </head>
 <body>
+  <h3>Trip Settings</h3>
+  <div class="controls" id="tripControls">
+    <label for="tripStart">Start</label>
+    <input id="tripStart" type="date">
+    <label for="tripEnd" style="margin-left: 0.75rem;">End</label>
+    <input id="tripEnd" type="date">
+    <button id="applyTrip" type="button" style="margin-left: 0.75rem;">Apply Trip</button>
+  </div>
+
   <div id="calendar" class="calendar"></div>
   <h3>Holding Area</h3>
   <div class="controls">
