@@ -514,7 +514,8 @@
               text: "New Activity",
               color: 0,
               location: iso,
-              order: Date.now()
+              order: Date.now(),
+              link: null
             });
 
             pendingEditTileId = id;
@@ -873,7 +874,7 @@
 
     window.createTile = function createTile() {
       const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      tiles.push({ id, text: "New Activity", color: 0, location: null, order: Date.now() });
+      tiles.push({ id, text: "New Activity", color: 0, location: null, order: Date.now(), link: null });
       pendingEditTileId = id;
       syncToFirestore();
       renderAll();
