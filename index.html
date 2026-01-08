@@ -408,7 +408,9 @@
 
           dayBox.dataset.date = iso;
 
-          const dayTiles = tiles.filter(t => t.location === iso);
+          const dayTiles = tiles
+            .filter(t => t.location === iso)
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
           const minHeightPx = Math.max(150, (dayTiles.length + 1.5) * baseTileHeight);
           dayBox.style.minHeight = minHeightPx + "px";
 
@@ -531,6 +533,10 @@
       if (!moving) return;
       tiles = tiles.filter(t => t.id !== id);
       moving.location = date;
+
+      // Step F2: update ordering when moved so it lands predictably at the bottom
+      moving.order = Date.now();
+
       tiles.push(moving);
       syncToFirestore();
     }
@@ -577,7 +583,9 @@
 
     function renderHolding() {
       holdingAreaEl.innerHTML = '';
-      const holdingTiles = tiles.filter(t => !t.location);
+      const holdingTiles = tiles
+        .filter(t => !t.location)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       holdingTiles.forEach(tileData => {
         const tile = renderTile(tileData, holdingTiles, 0);
         holdingAreaEl.appendChild(tile);
@@ -599,7 +607,7 @@
 
     window.createTile = function createTile() {
       const id = `tile-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-      tiles.push({ id, text: "New Activity", color: 0, location: null });
+      tiles.push({ id, text: "New Activity", color: 0, location: null, order: Date.now() });
       syncToFirestore();
     };
 
