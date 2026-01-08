@@ -273,6 +273,17 @@
       tile.draggable = true;
       tile.dataset.id = data.id;
 
+      // Drag state (required for day drop handlers to accept the drop)
+      tile.ondragstart = (e) => {
+        draggingId = data.id;
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", data.id);
+      };
+
+      tile.ondragend = () => {
+        draggingId = null;
+      };
+
       let isEditing = false;
       const content = document.createElement("div");
       content.className = "tile-content";
@@ -333,6 +344,16 @@
       return tile;
     }
 
+    // Minimal drop helper (solo-use): remove tile from array, set its location, append to end.
+    function moveTileToDay(id, date) {
+      const moving = tiles.find(t => t.id === id);
+      if (!moving) return;
+      tiles = tiles.filter(t => t.id !== id);
+      moving.location = date;
+      tiles.push(moving);
+      syncToFirestore();
+    }
+
     async function syncToFirestore() {
       await setDoc(docRef, { tiles });
     }
@@ -356,6 +377,19 @@
         const tile = renderTile(tileData, holdingTiles, 0);
         holdingAreaEl.appendChild(tile);
       });
+
+      // Allow dropping tiles back into holding area
+      holdingAreaEl.ondragover = (e) => {
+        e.preventDefault();
+      };
+
+      holdingAreaEl.ondrop = (e) => {
+        e.preventDefault();
+        if (!draggingId) return;
+        moveTileToDay(draggingId, null);
+        draggingId = null;
+        renderAll();
+      };
     }
 
     window.createTile = function createTile() {
